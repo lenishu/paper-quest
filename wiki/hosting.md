@@ -6,7 +6,11 @@
 Express, Multer, serverless-http and PDF.js so the deployment package contains
 the modules required by the CommonJS server. The v2 entries load cloud.js with
 createRequire so the file tracer follows the original CommonJS requires; an
-ESM import had transformed them into untraceable bundled aliases. Use a credit-based Free plan (legacy Free
+ESM import had transformed them into untraceable bundled aliases. Netlify traces
+these functions file by file, so `included_files` also lists PDF.js's
+`legacy/build/pdf.worker.mjs`. PDF.js imports that worker at runtime, the tracer
+cannot follow the import, and without it hosted PDF uploads fail with "Setting up
+fake worker failed". Use a credit-based Free plan (legacy Free
 plans do not include background functions). No paid database or hosted AI key
 is required. Visitors supply their own provider keys.
 
@@ -79,10 +83,14 @@ The supplied PaperQuest web client ID is saved in `server/auth-config.json`.
 It is public and is returned to browsers; a Google client secret is never used.
 For another deployment, create a **Web application** client in the [Google Auth Platform](https://console.cloud.google.com/auth/clients).
 Configure the consent/branding screen, audience and test users if in testing mode.
-Add `https://paperquestapp.netlify.app` (and each custom domain you use) to
-**Authorized JavaScript origins**. This uses the GIS popup credential callback;
+Add each production origin, such as `https://paper-questapp.netlify.app` (and each
+custom domain you use), to **Authorized JavaScript origins**. Google accepts no
+wildcards, so every Netlify project and domain needs its own entry. This uses the GIS popup credential callback;
 no client secret or OAuth redirect URI is needed. Follow Google's
 [client setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid).
+`netlify.toml` sends `Referrer-Policy: strict-origin-when-cross-origin`, which that
+guide recommends because loading `gsi/client` is a cross-origin request. The
+earlier `no-referrer` did not follow that guidance.
 Generate the auth secret locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`
 and save it privately. Keep it stable and backed up: changing it invalidates
 sessions and makes existing account links and staged backups unreadable.
@@ -154,21 +162,33 @@ provider tokens again.
   paid plan or recharge when free-only hosting is required. Provider AI charges
   are separate. This small-workspace snapshot store is intended for light use.
 - Run `npm test`, `npm run build`, and `npx netlify build` before deployment.
+  Check that `.netlify/functions/*.zip` contain the runtime packages and
+  `pdf.worker.mjs` but no local data, tests or `.env` files.
 - `server/cloud.test.js` tests sessions, isolation, persistence, concurrent
   writes, recovery, job ownership/claims, cached lessons, and multipart uploads.
 - `.netlify/` and `.env*` are ignored. Never commit service tokens or local data.
 
 ## Deploy
 
-Import `lenishu/Paperquest` into Netlify on a credit-based Free team, branch
-`main`, with the settings from `netlify.toml`. Or authenticate the Netlify CLI,
+Import `lenishu/paper-quest` (this repo) into Netlify on a credit-based Free team,
+branch `main`, with the settings from `netlify.toml`. Or authenticate the Netlify CLI,
 link/create a site in the Free team, then run `npx netlify deploy --build --prod`.
 No extra secrets are required for storage or sessions. Netlify automatically
 provides the Blobs credentials and deployment URL. Verify `/api/session`, an
 isolated demo project, reload persistence, upload, and a completed background
 task on the live site. Do not call a successful static build a full deployment.
 
-Production URL: https://paperquestapp.netlify.app/
+Production URL: https://paper-questapp.netlify.app/ (a Netlify project created on
+2026-09-27 from this repo). The older https://paperquestapp.netlify.app/ builds
+from `lenishu/Paperquest` and is not updated from here.
+
+**A new Netlify project starts empty.** It has its own Blobs store and no
+environment variables. Set `PAPERQUEST_AUTH_SECRET` and
+`PAPERQUEST_DEVELOPER_EMAILS` (see above), add the project's origin to the Google
+client, then redeploy: environment changes apply only to later deploys. Until
+then `/api/session` reports `googleEnabled: false`. Workspaces, account links and
+staged developer backups from another project do not carry over. Use Settings >
+Import local projects, or stage the backup again for this project.
 
 **Make the project public.** Credit-based teams created on or after 2026-07-28
 start new projects private. While private, every path (`/`, `/api/*`, assets)

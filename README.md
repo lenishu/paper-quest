@@ -6,7 +6,7 @@ No chat interface. Just: *this paper has these foundations — start climbing.*
 
 ## Hosted app on Netlify (free plan)
 
-The full app can run on a Netlify credit-based Free plan: build command `npm run build`, publish directory `client/dist`, and functions from `netlify/functions`. The checked-in `netlify.toml` supplies these settings. GitHub Pages supports static websites and cannot run this app's API.
+The hosted app runs at https://paper-questapp.netlify.app. The full app can run on a Netlify credit-based Free plan: build command `npm run build`, publish directory `client/dist`, and functions from `netlify/functions`. The checked-in `netlify.toml` supplies these settings. GitHub Pages supports static websites and cannot run this app's API.
 
 Each browser gets a separate encrypted workspace, saved persistently in Netlify Blobs. Open **Settings → Your account** to sign up or sign in with Google (requires the site owner's [Google setup](wiki/hosting.md#google-accounts-and-developer-recovery)). First sign-up links your current workspace; returning accounts reopen their saved workspace on any device. You can also save your **recovery key**. Anyone with that key can access the workspace. Sign out opens a fresh guest workspace. Your existing local papers and API keys are never uploaded by deployment.
 

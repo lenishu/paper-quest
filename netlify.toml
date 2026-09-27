@@ -10,7 +10,8 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["pdfjs-dist", "express", "multer", "serverless-http", "google-auth-library"]
-  included_files = ["server/**", "!server/*.test.js", "!data/**", "!data/**/.*", "!data/**/.*/**", "!client/**", "!.env*"]
+  # PDF.js imports its worker at runtime; the file tracer cannot follow that import.
+  included_files = ["server/**", "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs", "!server/*.test.js", "!data/**", "!data/**/.*", "!data/**/.*/**", "!client/**", "!.env*"]
 
 [[redirects]]
   from = "/*"
@@ -21,6 +22,6 @@
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "no-referrer"
+    Referrer-Policy = "strict-origin-when-cross-origin"
     X-Frame-Options = "SAMEORIGIN"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
