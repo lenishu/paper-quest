@@ -1,98 +1,251 @@
-# 🌳 PaperQuest
+# PaperQuest
 
-Drop any research paper (PDF or Markdown) into a project. PaperQuest converts it to Markdown, identifies the concepts it stands on, and grows a **prerequisite skill tree** rooted in high-school math & physics. You learn bottom-up: pass a short quiz on a concept to unlock the branches that build on it, until you reach the paper's core idea — explained using everything you just learned.
+**Turn complex documents into connected, achievable learning paths.**
 
-No chat interface. Just: *this paper has these foundations — start climbing.*
+PaperQuest organizes documents, identifies the concepts behind them, and maps the prerequisites needed to understand them. Bring together research papers, coursework, personal notes, project briefs, or reference material, then build your knowledge through focused refreshers, quizzes, and career exploration.
 
-## Hosted app (Vercel, free Hobby plan)
+[Open the web app](https://paper-quest-lovat.vercel.app/) · [Run locally](#run-locally) · [Deploy to Vercel](#deploy-to-vercel) · [Documentation](wiki/index.md)
 
-The full app runs on Vercel's free Hobby plan with a free Neon Postgres database. The checked-in `vercel.json` supplies the build settings (Vite preset, output `client/dist`) and routes `/api` to one function, `api/index.mjs`. Setup steps are in [Vercel hosting](wiki/hosting-vercel.md). The Netlify configuration (`netlify.toml`, `netlify/functions`) still works for Netlify deployments. GitHub Pages supports static websites and cannot run this app's API.
+## Features
 
-Each browser gets a separate encrypted workspace, saved persistently in the host's storage (Postgres on Vercel, Blobs on Netlify). Open **Settings → Your account** to sign up or sign in with Google (requires the site owner's [Google setup](wiki/hosting.md#google-accounts-and-developer-recovery)). First sign-up links your current workspace; returning accounts reopen their saved workspace on any device. You can also save your **recovery key**. Anyone with that key can access the workspace. Sign out opens a fresh guest workspace. Your existing local papers and API keys are never uploaded by deployment.
+- **Document workspaces:** Organize PDF and Markdown files into projects for research, classes, courses, clubs, hackathons, and notes.
+- **Prerequisite maps:** Explore how foundational concepts connect to more advanced ideas, with links back to their use in the source material.
+- **Learning tools:** Open saved refreshers, take quizzes, ask follow-up questions, and generate document summaries and project cheatsheets.
+- **Connected knowledge:** Explore concepts across projects and career paths in an interactive 3D graph, with a 2D view available.
+- **Progress tracking:** Keep concept notes, bookmarks, mastery, XP, and activity history in one workspace. Shared concepts carry progress across projects.
+- **Career exploration:** Discover relevant roles, map practical tools and skills, and compare them with resumes and job descriptions.
+- **Accounts and sharing:** Reopen hosted workspaces with Google sign-in or a recovery key, and share a read-only showcase through judge access.
 
-Lost the old recovery key? **Developer access** lets an approved Google account preview and restore a private backup staged by the site owner. Restore keeps newer projects and includes previous papers, lessons, notes and progress; conflicting projects or progress stop recovery without overwriting your data. It does not decrypt a lost-key cloud workspace: a local backup is required. You can also use **Import local projects** below without developer access.
+The current learning prompts and prepared demo emphasize technical and STEM material. Research papers are one use case within the broader document-based workflow.
 
-To bring your local projects online, run `npm run workspace:export` in this folder. In the hosted app, open **Settings → Import local projects** and choose `.netlify/paperquest-projects-backup.json`. Import into an empty workspace. The backup includes projects, original papers, saved lessons and chats, notes, bookmarks, progress and XP; it excludes API keys and career/resume documents. Keep the backup private. Your local files remain unchanged.
+## Use the web app
 
-Hosted uploads are limited to **4 MB per file**, with **24 MB per workspace**. AI jobs run in the background; cached lessons remain free to reopen. AI works out of the box: when the site owner sets `PAPERQUEST_SHARED_GEMINI_KEYS`, every account uses those free Gemini keys by default (they stay on the server and rotate when one hits its rate limit). Anyone can add their own key under **🔑 API key**; provider charges are separate from hosting. Vercel Hobby stops any single task after 5 minutes, so an unusually long AI job can time out; Netlify Free pauses sites when its monthly credits run out. Custom AI endpoints require the site owner to enable their trusted HTTPS origin. See [hosting details](wiki/hosting.md).
+Open **[paper-quest-lovat.vercel.app](https://paper-quest-lovat.vercel.app/)** in your browser. No local installation is required.
 
-## Requirements
+1. Follow the guided tour or select **Try the demo project** to explore a prepared example based on *Attention Is All You Need*. The sample map, saved refresher, summary, cheatsheet, and career path work without a personal AI key.
+2. Open the profile menu to sign in with Google and associate the workspace with your account. Use **Switch Google account** to change accounts.
+3. Create a project, choose its type, and upload PDF or Markdown documents.
+4. Explore the generated map, review concepts, and track progress in the dashboard and knowledge graph.
+5. Open **Career Path** to connect your learning with professional goals.
 
-- [Node.js](https://nodejs.org) 22.13 or newer
-- An API key from **one** of: Google Gemini, Anthropic (Claude), OpenAI, OpenRouter, Groq, Zhipu GLM, or any OpenAI-compatible endpoint
+New AI requests use a shared Gemini connection when the deployment provides one. You can configure a personal connection through **API key**. Availability and usage charges depend on the selected provider.
 
-## Quick start
+### Share a judge showcase
 
-**Windows, easiest:** double-click **`start.bat`**. It installs dependencies (first run only), builds the app, starts the server and opens your browser. Keep the black window open while you use the app.
+Approved developer accounts can open **Profile → Developer access & account → Create judge access key**. Share the generated key with the [judge-view link](https://paper-quest-lovat.vercel.app/?judge=1).
 
-> ⚠️ Don't open `client/index.html` directly — that gives a blank page. The app must run through its server: use `start.bat` or the commands below, then go to **http://localhost:3001**.
+The read-only snapshot includes graphs, progress, saved learning materials, and career comparisons. Original uploads, personal notes, chat threads, resume text, and provider credentials are excluded. Keys expire after 30 days and can be revoked. Refresh the snapshot after adding content; refreshing replaces the previous key.
 
-Manual:
+## Run locally
+
+### Prerequisites
+
+- **Node.js 22.13 or newer**, with npm.
+- **Git** to clone the repository, or a downloaded copy of the source.
+- An **AI provider key** to analyze your own documents and generate new learning content. The prepared demo works without one.
+
+Local mode stores a single workspace on disk. It runs without Postgres, a hosting account, or Google sign-in configuration.
+
+### Install and start development mode
 
 ```bash
-npm install
+git clone https://github.com/lenishu/paper-quest.git
+cd paper-quest
+npm ci
+npm run dev
+```
+
+Open **[http://localhost:5173](http://localhost:5173)**.
+
+This starts the Vite frontend with hot reload and the Express API on port `3001`. Vite forwards `/api` requests to Express. Stop both processes with `Ctrl+C` in the terminal.
+
+### Run the production build locally
+
+From the project root, after installing dependencies:
+
+```bash
 npm run build
 npm start
 ```
 
-Then open **http://localhost:3001**.
+Open **[http://localhost:3001](http://localhost:3001)**. Express serves both the API and the compiled frontend from `client/dist`.
 
-For development with hot reload use `npm run dev` and open http://localhost:5173.
+Rebuild after changing frontend code. Local builds use the default configuration, with `VITE_CLOUD` unset; the hosted build enables that flag through the deployment configuration.
 
-First steps:
+### Windows launcher
 
-1. Click **🔑 API key** (top right, in the profile menu, or above the quote in the sidebar), add a connection (provider + key), **Test** it, then **Save**. On the hosted app a shared free Gemini key is already active, so this step is optional. Two ways to fill it in: type into the form, or open **Set up with code** and paste the request snippet from your provider's docs (Python, JavaScript or cURL) — PaperQuest reads the URL, model, key and reasoning setting out of it. This includes the code Google AI Studio gives you. Under each **Model** field, Settings shows which model that connection uses. The same panel shows the exact request PaperQuest will send, in all three languages, ready to copy. You can add several connections — even multiple keys for the same provider — and pick which one is **active**. An optional Semantic Scholar API key (same screen) speeds up the paper reference/citation lookups.
-2. Create a project (a research paper, class, course, club, hackathon or your notes) and drop in a PDF, or click **Try the demo project** first: the real *Attention Is All You Need* paper (opened from arXiv), its map, a saved lesson, a summary and a cheatsheet, all without a key. A new workspace starts a short guided tour that walks through all of this; restart it from the profile menu.
+Run `start.bat` from the project folder. The launcher installs missing dependencies, creates the frontend build if needed, starts the application, and opens `http://localhost:3001`.
 
-## How it works
+The launcher also attempts to install the optional Docling converter when Python is available. The command-line setup above uses the bundled PDF.js extractor unless Docling is already installed.
 
-- **PDF → Markdown (local tool, no AI)** — converted on your machine by docling (best quality, installed automatically when Python is present) or pdf.js as fallback and cleaned into a `.md` file (downloadable from the paper chip). The AI never touches the PDF itself, only the extracted text. Scanned/image-only PDFs aren't supported — use an OCRed copy.
-- **Concept network** — the AI reads the extracted text, identifies the mathematical tools the paper actually uses and which **branch of math** each comes from (linear algebra, probability, optimization, …), then uses its knowledge of how those branches interrelate to build a prerequisite network: 12–22 learnable concepts anchored in 3–6 high-school baseline topics, topped by 1–3 ★ **core** nodes (the paper's own contribution). Node side-stripes are colour-coded by branch.
-- **Click a topic → see it in the paper** — every node records *how this specific paper uses that concept* (which method, equation or section relies on it), shown in the side panel per paper.
-- **Your own notes per concept** — click a topic on the map and jot notes (resources to learn it, reminders, links). They save automatically and collect on the project **Overview** tab under *Your notes*, alongside a *Recently covered* list and per-branch progress bars that fill one box per concept (e.g. 2 of 11).
-- **Multiple papers per project** — each new paper is *merged* into the existing tree, reusing concepts that are already there.
-- **Gamified learning** — glowing nodes are ready to learn. Each opens a generated lesson (with proper math rendering) followed by a 4-question quiz; score 75%+ to master it and unlock its branches. Know it already? Skip for half XP. Lessons build only on what you've already mastered, and are **written once**: the first open generates it, every open after that loads the saved copy from disk — instantly, with no API call. Concepts that already have one say **📖 Open saved refresher**, and the lesson shows a "your saved copy" note. **🔁 Regenerate** is the only control that spends tokens, and it asks first.
-- **Ask about a lesson** — every refresher has a Q&A thread at the bottom. Ask anything, or hit **📚 Ask for sources** to get the books and papers it rests on. Each answer is filed under the model's own one-sentence paraphrase of your question (highlighted), so a long thread stays skimmable. The whole thread comes back every time you reopen that refresher — including after regenerating the lesson — and each answer builds on the ones before it.
-- **Knowledge Graph (Explore tab)** — your whole knowledge as one navigable **3D** star field: every concept across every project **plus** every career skill, merged where they share a concept. Drag to rotate, scroll to zoom, click any star to travel to it — the camera flies to that concept framed with its prerequisites and what it unlocks, and you hop node to node from the detail panel. Search to jump anywhere, filter by branch. Colour shows progress (mastered / known / ready), size shows tier, and locked concepts keep their branch hue. The ▦ button switches to a 2D map at any time, and PaperQuest falls back to 2D automatically if your machine can't do WebGL. The compact version on the dashboard stays 2D by design.
-- **Reference explorer (🔗 on any paper)** — a ResearchRabbit-style citation map. Three panes: every paper found so far (left), the map itself (centre), and the selected paper with its abstract (right). Papers are placed by **year** (left→right) and **citation count** (bottom→top), with dot size following citations. **Click any paper — on the map or in the list — and PaperQuest pulls in similar work automatically**, growing the network; the buttons under the abstract add its references or the papers citing it on demand. Powered by Semantic Scholar (an external web service, not AI).
-- **Cross-project foundations** — mastery is global. If two projects share `gradient_descent`, mastering it in one pre-unlocks it in the other; project cards show how many concepts they share.
-- **XP & levels** — Novice → Apprentice → Scholar → … Deeper and core concepts award more XP.
-- **Career Path (✧ tab)** — AI suggests roles from your knowledge graph, or type an interest ("I like robotics and computer vision") or a title; it maps the **tools and skills job postings ask for** (Python, PyTorch, Docker, SQL…), not courses. Each tool links to the concepts it uses, and turns amber once you master them. Upload a tailored resume per career (it shows the critical gaps) and job descriptions (upload a file **or paste the text**) to get a match % for each job. Mark tools you already know; the missing critical ones become your suggested next steps with a live match %.
-- **Study tools** — each project's overview has a one-page **cheatsheet** (formulas, definitions, build-up path, pitfalls), and every paper a **summary** (TL;DR, key ideas, how it works, results). Both are written once by AI and reopen free.
+### Configure AI
 
-## Where your data lives
+1. Open **API key** in the application.
+2. Add a connection and select a provider.
+3. Enter the API key and model. For a compatible custom provider, also enter its base URL.
+4. Select **Test**, save the connection, and make it active.
 
-When running locally, everything is in the `data/` folder. Hosted workspaces use encrypted snapshots in the host's storage instead (Postgres on Vercel, Netlify Blobs on Netlify):
+Supported connections include Google Gemini, Anthropic, OpenAI, OpenRouter, Groq, Zhipu GLM, and OpenAI-compatible endpoints. Multiple connections can be saved and switched in the interface. **Set up with code** can import connection details from a provider's request example.
 
-- `data/settings.json` — AI connections (provider, key, model, base URL), which one is active, and an optional Semantic Scholar key (keys never leave your machine except to the provider they belong to)
-- `data/projects/<id>/papers/*.md` — the converted Markdown files
-- `data/projects/<id>/lessons/*.json` — cached lessons & quizzes
-- `data/projects/<id>/lessons/*.chat.json` — the Q&A thread for that lesson
-- `data/mastery.json`, `data/profile.json` — your progress and XP
-- `data/careers/<id>/` — each career: tools & skills map (`career.json`), its resume (`resume.pdf`/`.md`) and job descriptions (`jds/`); `data/careers/suggestions.json` keeps the last AI suggestions
-- `data/projects/<id>/papers/<paperId>.summary.json` and `cheatsheet.json` — saved summaries and cheatsheets; `data/onboarding.json` — guided-tour progress
+An optional Semantic Scholar key supports reference and citation lookups for research documents. Saved learning content reopens without a new generation request.
 
-Back up or delete `data/` to export or reset everything.
+## Deploy to Vercel
 
-## Knowledge graphs (optional, offline)
+PaperQuest's Vercel deployment uses a static Vite frontend, a Node.js API function, and a Neon Postgres database. The repository includes the required build and routing configuration in [`vercel.json`](vercel.json).
 
-With [graphify](https://github.com/safishamsi/graphify) installed (`pip install graphifyy`), two interactive graph visualizations can be generated — no API key or tokens needed:
+### 1. Import the repository
 
-- `npm run graph:knowledge` → **`graphify-out/knowledge/graph.html`** — YOUR knowledge as one network: every concept from every project + every career skill, merged by canonical id (careers literally connect to your paper galaxy through shared skills), colored by branch, ✓ = mastered, ★ = core, ◈ projects / ✧ careers as hubs. Regenerate any time; it reads `data/` directly.
-- `/graphify .` (in Claude Code) → **`graphify-out/graph.html`** — the codebase itself as a graph (for contributors/AI sessions). Refresh after code changes with `graphify update .`.
+Import your fork or `lenishu/paper-quest` into Vercel. Keep the repository root as the **Root Directory** and select the **Vite** framework preset. Choose a Node.js runtime compatible with `package.json` (22.13 or newer).
 
-Both are static HTML files — just open them in a browser.
+The repository supplies these settings:
+
+| Setting | Value |
+| --- | --- |
+| Install command | `npm install` |
+| Build command | `VITE_CLOUD=true npm run build` |
+| Output directory | `client/dist` |
+| API entry point | `api/index.mjs` |
+| API routing | `/api/*` → the API function |
+
+See the [Vercel Vite documentation](https://vercel.com/docs/frameworks/frontend/vite) for the platform's import workflow.
+
+### 2. Connect storage
+
+In the Vercel project, open **Storage** and connect a **Neon Postgres** database through the Marketplace integration. Ensure the integration supplies `DATABASE_URL` to the deployment environment you intend to use.
+
+The application creates its `paperquest_blobs` table on first use. Local `data/` files are migrated separately through the export/import workflow below.
+
+See [Postgres on Vercel](https://vercel.com/docs/postgres) for database integration options.
+
+### 3. Set environment variables
+
+Add the following in **Project Settings → Environment Variables**:
+
+| Variable | Purpose | Requirement |
+| --- | --- | --- |
+| `DATABASE_URL` | Postgres connection string supplied by Neon. `POSTGRES_URL` is also accepted. | Required for hosted storage |
+| `GOOGLE_CLIENT_ID` | Your Google OAuth web application's client ID. Overrides the repository's default. | Set for Google sign-in on your deployment |
+| `PAPERQUEST_AUTH_SECRET` | Stable encryption secret consisting of 64 lowercase hexadecimal characters. | Required for Google accounts and judge sharing |
+| `PAPERQUEST_DEVELOPER_EMAILS` | Comma-separated approved developer Google email addresses. | Optional; enables developer recovery and sharing |
+| `PAPERQUEST_DEVELOPER_GOOGLE_SUBS` | Comma-separated approved Google subject IDs. | Optional alternative developer allowlist |
+| `PAPERQUEST_SHARED_GEMINI_KEYS` | Comma-separated Gemini keys used by the shared connection. | Optional; enables AI access without individual setup |
+| `PAPERQUEST_ALLOWED_AI_ORIGINS` | Comma-separated additional trusted HTTPS origins for custom AI endpoints. | Optional |
+
+Generate the authentication secret locally:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Store the generated value as a sensitive server-side environment variable and retain a private backup. Keep the value stable across deployments so existing accounts and shared snapshots remain readable. Database credentials and shared provider keys also belong in server-side secret storage.
+
+### 4. Configure Google sign-in
+
+In **Google Auth Platform**, create or select an OAuth client of type **Web application**. Register the exact addresses for your deployment:
+
+| Google setting | Example |
+| --- | --- |
+| Authorized JavaScript origins | `https://your-project.vercel.app` |
+| Authorized redirect URIs | `https://your-project.vercel.app/` |
+
+The trailing slash is part of the full-page chooser's redirect URI. Register custom domains separately, and ensure the OAuth audience permits your intended users. See [Google's setup guide](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid).
+
+### 5. Deploy and verify
+
+Deploy after connecting storage and setting the environment variables. Redeploy whenever environment values change so the next deployment receives them.
+
+Verify the installation by opening the app, creating a project, reloading it, and signing in with Google. The `/api/session` endpoint reports `cloud: true`; `googleEnabled: true` confirms that authentication configuration is present. Use the prepared demo to check the map and learning screens without generating new AI content.
+
+Further deployment details are in the [Vercel hosting guide](wiki/hosting-vercel.md). The repository also includes a [Netlify deployment configuration](netlify.toml) and [Netlify hosting guide](wiki/hosting.md).
+
+## Data and backups
+
+| Mode | Storage |
+| --- | --- |
+| Local | Files under `data/`, including documents, settings, credentials, lessons, careers, and progress |
+| Vercel | Encrypted workspace snapshots in Postgres |
+| Netlify | Encrypted workspace snapshots in Netlify Blobs |
+
+For a complete local backup, stop the application and copy `data/` to a private backup location. Restoring that folder restores the local workspace, including its settings and career materials.
+
+### Move local projects to the web app
+
+After creating local projects, run:
+
+```bash
+npm run workspace:export
+```
+
+This writes `.netlify/paperquest-projects-backup.json`. The same export file works with the Vercel deployment.
+
+In the hosted app, open **Settings → Import local projects**, select the export, and complete the import into an empty workspace. Developer imports can add missing project folders to an existing workspace while preserving existing folders and newer progress.
+
+The export contains project documents, saved lessons and chats, notes, bookmarks, and learning progress. Provider credentials and career/resume files are excluded. Hosted **recovery keys** reopen a full workspace; **judge keys** grant access only to the shared snapshot.
+
+Document text and relevant learning context are sent to the selected AI provider when generating content. PDF extraction runs in the application backend using PDF.js, or locally available Docling.
+
+## Development
+
+### Commands
+
+| Command | Description |
+| --- | --- |
+| `npm ci` | Install the dependency versions recorded in `package-lock.json` |
+| `npm run dev` | Start the frontend and API in development mode |
+| `npm run build` | Compile the frontend to `client/dist` |
+| `npm start` | Run Express and serve the compiled frontend |
+| `npm test` | Run the server test suite |
+| `npm run workspace:export` | Export local projects for hosted import |
+| `npm run workspace:stage-developer` | Stage a private developer backup using configured hosting credentials |
+| `npm run graph:knowledge` | Export a standalone knowledge graph using the optional Python/Graphify toolchain |
+
+### Project structure
+
+```text
+paper-quest/
+├── client/src/         React interface, graph views, and learning screens
+├── server/             Express API, AI adapters, authentication, and storage
+├── api/index.mjs       Vercel function entry point
+├── netlify/functions/  Netlify function entry points
+├── scripts/            Export and maintenance utilities
+├── wiki/               Feature, API, and deployment documentation
+├── data/               Local workspace data, generated at runtime
+├── vite.config.mjs     Frontend build and development proxy
+└── vercel.json         Vercel build, routing, and function configuration
+```
+
+Before submitting changes, run:
+
+```bash
+npm test
+npm run build
+```
+
+Keep pull requests focused and describe the behavior changed and the checks performed. [Architecture](ARCHITECTURE.md) and the [documentation index](wiki/index.md) provide additional context for contributors.
 
 ## Troubleshooting
 
-- **Blank page?** You probably opened `client/index.html` directly. Use `start.bat` (or `npm start`) and go to http://localhost:3001 instead.
-- **"Something went wrong" / WebGL error?** The dashboard now falls back to a 2D map automatically when your browser can't do 3D (WebGL). To get the 3D galaxy back, enable **Settings → System → "Use graphics acceleration when available"** in Chrome and relaunch, or check `chrome://gpu`.
-- **"No active API connection with a key"** — open ⚙️ settings, add a connection with a key and mark it **active**.
-- **Model errors** — each connection's model name is editable; defaults are `gemini-2.5-flash`, `claude-sonnet-5`, `gpt-4o-mini`, OpenRouter `google/gemma-4-31b-it:free`, Groq `llama-3.3-70b-versatile`, GLM `glm-4-flash`. Any current model string from your provider works. Leave the field blank to use the default. The line under it shows which model is in use, and **Test** reports the model that answered. For an OpenAI-compatible custom endpoint, set the **Base URL** (e.g. `https://host/v1`).
-- **Google Gemini keys** — Google AI Studio now issues keys starting with `AQ.`, and older `AIza` keys also work. In AI Studio's code, the model code is the part of the URL between `models/` and `:generateContent`, for example `gemini-flash-latest`.
-- **OpenRouter** — pick any model from openrouter.ai/models as the model name. Tick **Reasoning tokens** to have the model think before it answers; PaperQuest carries that thinking forward through a lesson's Q&A thread, so follow-ups continue where the last answer left off. If a model rejects reasoning or JSON mode, the request is retried without them.
-- **References slow / rate-limited** — add a Semantic Scholar API key in ⚙️ settings to lift the shared free-tier limit. The first lookup for a paper is the slow one (title search); once it lands it is cached, and clicking around the map afterwards is fast.
-- **Reference explorer says it couldn't match the paper** — the lookup goes by title, so rename the paper to its exact published title and hit ↻ Refresh.
-- **"The shared free Gemini key is busy"** — every shared key hit its free-tier rate limit. Wait a minute, or add your own key under 🔑 API key and set it active.
-- **Malformed JSON from model** — occasionally a model returns a broken graph; just hit analyze again (the 🔁 button on the paper chip). Math that a model writes with single backslashes (Gemini does this) is repaired automatically, so math-heavy lessons no longer fail this way.
-- **Port in use** — set `PORT=3002 npm start`.
+| Issue | Resolution |
+| --- | --- |
+| AI connection unavailable | Open **API key**, test a connection, and set it active. Shared connections depend on deployment configuration and provider availability. |
+| Provider rate limit | Retry after the provider's reset interval or switch to another configured connection. |
+| PDF contains no extractable text | Upload a searchable PDF or a Markdown version of the document. |
+| Hosted upload exceeds the limit | Use a file under 4 MB. Hosted workspaces have a 24 MB application storage limit. |
+| Hosted task times out | Retry with a smaller document or use local mode. The Vercel function is configured for a maximum duration of 300 seconds. |
+| 3D rendering unavailable | Use the 2D graph view. The app also provides a fallback when WebGL is unavailable. |
+| Google reports an origin or redirect mismatch | Match the deployed origin and redirect URI exactly in the OAuth client configuration, then allow time for the change to apply. |
+| API reports storage is not configured | Connect Postgres, confirm `DATABASE_URL` is available to the deployment, and redeploy. |
+| Port 3001 is occupied | Set `PORT` before `npm start`. For `npm run dev`, also update the API proxy target in `vite.config.mjs` to match. |
+
+To use another port for the local production build:
+
+```powershell
+# PowerShell
+$env:PORT = "3002"
+npm start
+```
+
+```bash
+# macOS / Linux
+PORT=3002 npm start
+```
