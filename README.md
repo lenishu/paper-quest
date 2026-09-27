@@ -113,6 +113,8 @@ See the [Vercel Vite documentation](https://vercel.com/docs/frameworks/frontend/
 
 For **Snowflake Postgres**, create a Postgres instance in Snowsight, configure network access for your deployment, and create a dedicated database and application login. Add its PostgreSQL connection string to Vercel as the sensitive variable `PAPERQUEST_DATABASE_URL`, using `sslmode=verify-full`. Snowflake Postgres uses the PostgreSQL protocol; a Snowflake SQL warehouse connection is not interchangeable.
 
+Download the account's public certificate from **Postgres → Account Actions → Download Certificate** and set `PAPERQUEST_DATABASE_CA` to the complete PEM contents, including the BEGIN/END lines. This enables certificate and hostname verification with Snowflake's account-specific CA. See [Snowflake SSL certificates](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-ssl-certs).
+
 Alternatively, connect **Neon Postgres** through Vercel's Storage Marketplace integration, which supplies `DATABASE_URL`. The application selects `PAPERQUEST_DATABASE_URL` first, then `DATABASE_URL`, then `POSTGRES_URL`. This lets you retain an old integration during a migration.
 
 The application creates its `paperquest_blobs` table on first use. Local `data/` files are migrated separately through the export/import workflow below.
@@ -126,6 +128,7 @@ Add the following in **Project Settings → Environment Variables**:
 | Variable | Purpose | Requirement |
 | --- | --- | --- |
 | `PAPERQUEST_DATABASE_URL` | PostgreSQL connection string, including Snowflake Postgres. Overrides `DATABASE_URL` and `POSTGRES_URL`. | Required for hosted storage unless an alternative is set |
+| `PAPERQUEST_DATABASE_CA` | PEM root CA certificate; enforces verified TLS and overrides URL SSL settings. Accepts multiline text or escaped `\n`. | Required for Snowflake Postgres; optional for public-CA providers |
 | `DATABASE_URL` / `POSTGRES_URL` | Alternative PostgreSQL connection variables used by hosting integrations. | Optional when the override is set |
 | `GOOGLE_CLIENT_ID` | Your Google OAuth web application's client ID. Overrides the repository's default. | Set for Google sign-in on your deployment |
 | `PAPERQUEST_AUTH_SECRET` | Stable encryption secret consisting of 64 lowercase hexadecimal characters. | Required for Google accounts and judge sharing |

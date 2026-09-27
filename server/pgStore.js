@@ -82,15 +82,29 @@ function createPgStore(query) {
   };
 }
 
+// A custom account CA (for example Snowflake Postgres) always requires verified
+// TLS. URL SSL options otherwise replace node-postgres's explicit ssl object.
+function connectionOptions(url, ca = process.env.PAPERQUEST_DATABASE_CA) {
+  if (!ca) return { connectionString: url };
+  const parsed = new URL(url);
+  const sslnegotiation = parsed.searchParams.get('sslnegotiation');
+  for (const key of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'sslnegotiation']) parsed.searchParams.delete(key);
+  return {
+    connectionString: parsed.href,
+    ...(sslnegotiation ? { sslnegotiation } : {}),
+    ssl: { ca: ca.replace(/\\n/g, '\n'), rejectUnauthorized: true }
+  };
+}
+
 // A dedicated override allows provider migrations without altering managed integration variables.
 function connect(url = process.env.PAPERQUEST_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL) {
   if (!url) throw Object.assign(new Error('Storage is not configured: set PAPERQUEST_DATABASE_URL or DATABASE_URL for this deployment.'), { status: 503 });
   const { Pool } = require('pg');
-  const pool = new Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
+  const pool = new Pool({ ...connectionOptions(url), max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
   // Neon closes idle connections when it scales to zero; without a listener the
   // pool's error event would crash the function instance.
   pool.on('error', (error) => console.error('Idle Postgres connection closed:', error.message));
   return { pool, store: createPgStore((text, params) => pool.query(text, params)) };
 }
 
-module.exports = { createPgStore, connect, TABLE };
+module.exports = { createPgStore, connect, connectionOptions, TABLE };

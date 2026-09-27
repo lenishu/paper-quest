@@ -3,7 +3,21 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 process.env.PAPERQUEST_HOSTED = 'true';
 const cloud = require('./cloud');
-const { createPgStore, TABLE } = require('./pgStore');
+const { createPgStore, connectionOptions, TABLE } = require('./pgStore');
+
+test('custom account CA survives URL parsing and enforces certificate and hostname verification', () => {
+  const { Client } = require('pg');
+  const ca = '-----BEGIN CERTIFICATE-----\naccount-ca\n-----END CERTIFICATE-----';
+  for (const query of ['sslmode=verify-full', 'sslmode=no-verify', 'ssl=0&sslnegotiation=direct', 'sslrootcert=/not-a-local-file']) {
+    const client = new Client(connectionOptions('postgresql://app:secret@db.example/app?' + query, ca.replace(/\n/g, '\\n')));
+    assert.equal(client.connectionParameters.ssl.ca, ca);
+    assert.equal(client.connectionParameters.ssl.rejectUnauthorized, true);
+    assert.equal(client.connectionParameters.ssl.checkServerIdentity, undefined, 'Node must retain its default hostname verification');
+    assert.equal(client.connectionParameters.host, 'db.example');
+  }
+  const url = 'postgresql://localhost/app?sslmode=disable';
+  assert.deepEqual(connectionOptions(url, ''), { connectionString: url }, 'providers without a custom CA retain their connection settings');
+});
 
 // PGlite is real Postgres in-process, so conditional writes are checked against actual SQL.
 async function postgres() {

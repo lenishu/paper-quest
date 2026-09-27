@@ -23,6 +23,8 @@ PAPERQUEST_DATABASE_URL=postgresql://APP_USER:URL_ENCODED_PASSWORD@HOST:5432/pap
 
 Store the actual value in Vercel's sensitive environment-variable storage. Snowflake Postgres is distinct from a Snowflake SQL warehouse: warehouse credentials and SQL API endpoints cannot be used as PostgreSQL connection strings.
 
+In **Postgres → Account Actions → Download Certificate**, download the account's public root CA. Add the complete PEM contents as `PAPERQUEST_DATABASE_CA` in Vercel, including the BEGIN/END lines. Multiline text and literal `\n` separators are supported. When this variable is set, the adapter uses it to verify both the certificate chain and the database hostname, overriding SSL options in the connection URL. See [Snowflake SSL certificates](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-ssl-certs).
+
 See [Snowflake Postgres setup](https://www.snowflake.com/en/developers/guides/getting-started-with-snowflake-postgres/) and [network configuration](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-network).
 
 ## Connection selection
