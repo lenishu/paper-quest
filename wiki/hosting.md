@@ -63,14 +63,12 @@ credentials exclusion, retries, preservation and original saved lessons.
 the profile menu opens it. Local single-user mode has no account requirement.
 
 Configure these production environment variables in Netlify (never use a
-`VITE_` prefix for secrets), then redeploy. On Netlify Free, use all scopes for
-the public client ID and developer allowlist. Mark `PAPERQUEST_AUTH_SECRET` as
-**Contains secret values** and include Builds, Functions and Runtime, excluding
-Post processing. This protected-secret configuration works on Free; selecting
-only Functions was rejected as a paid scope-control feature. Netlify makes the
-protected value write-only. It stays out of frontend code because it has no
-`VITE_` prefix and is read only by the server. Preserve the private local copy
-for encrypting the recovery backup.
+`VITE_` prefix for secrets), then redeploy. Ensure they are available to Functions
+in the intended deploy context. Mark `PAPERQUEST_AUTH_SECRET` as a secret where
+supported, and keep it out of frontend code, build output and logs. Recheck
+[Netlify's environment variable requirements](https://docs.netlify.com/build/environment-variables/overview/)
+for the current account before selecting scopes or secret controls. Preserve a
+private copy of the secret for encrypting the recovery backup.
 
 | Variable | Value |
 | --- | --- |
@@ -88,6 +86,22 @@ custom domain you use), to **Authorized JavaScript origins**. Google accepts no
 wildcards, so every Netlify project and domain needs its own entry. This uses the GIS popup credential callback;
 no client secret or OAuth redirect URI is needed. Follow Google's
 [client setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid).
+
+For the current hosted app, use these exact console settings:
+
+| Setting | Value |
+| --- | --- |
+| Authorized JavaScript origin | `https://paper-questapp.netlify.app` |
+| Authorized redirect URIs | None for the current GIS popup flow |
+| Browser callback | A JavaScript callback posts the ID token to `/api/auth/google`; this API path is not an OAuth redirect URI |
+
+Local single-user mode uses `http://localhost:3001` for the built app and
+`http://localhost:5173` for Vite. It deliberately has no Google account routes;
+adding those origins alone does not enable local authentication. If a local
+Netlify emulator is used to test the hosted flow, register `http://localhost`
+and its actual browser origin with the explicit port. Register each fixed preview
+or custom origin separately; do not add the older site's origin unless testing it.
+
 `netlify.toml` sends `Referrer-Policy: strict-origin-when-cross-origin`, which that
 guide recommends because loading `gsi/client` is a cross-origin request. The
 earlier `no-referrer` did not follow that guidance.
@@ -105,14 +119,23 @@ subject ID. Account links are encrypted with the server secret. A workspace owne
 record prevents a second Google identity from linking an already claimed workspace.
 First sign-up keeps the guest workspace; later sign-ins open the linked workspace.
 An existing account's guest data is not merged automatically: save its recovery key
-before switching. Multiple simultaneous sign-in starts in one workspace supersede
-the previous nonce; retry if necessary.
+before switching. Each browser sign-in attempt has a separate challenge so devices
+sharing a workspace do not replace each other's nonce. Challenges expire after ten
+minutes and cannot be reused, including simultaneous submissions.
 
 The account session uses a separate Secure/HttpOnly/SameSite=Strict cookie bound to
 the workspace, valid for seven days. Developer routes check this session and the
 current server allowlist on every request; a recovery key alone cannot grant
-developer privileges. Sign out clears account/nonce cookies and starts a fresh guest
-workspace. Previously issued recovery keys remain valid bearer access to their data.
+developer privileges. Sign out records revocation on the server, clears account/nonce
+cookies, invalidates the pending challenge and starts a fresh guest workspace. A copied
+account cookie cannot authenticate after logout. Other devices keep their own sessions.
+Previously issued recovery keys remain valid bearer access to their data.
+
+Before calling Google authentication verified end to end, sign in with a real Google
+account on the target host, reload, sign out, and sign back in to confirm the projects
+remain intact. A passing test suite or deployment does not complete Google console
+configuration or user consent. The automated auth tests verify the real Google library
+against locally signed test tokens; they do not perform a real Google login.
 
 To stage the existing nine-project backup, keep
 `.netlify/paperquest-projects-backup.json` private. Set `NETLIFY_SITE_ID`,
