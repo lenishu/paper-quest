@@ -4,6 +4,6 @@ const require = createRequire(import.meta.url);
 const cloud = require('../../server/cloud.js');
 
 export default async function handler(req) {
-  process.env.NETLIFY = 'true';
+  process.env.PAPERQUEST_HOSTED = 'true';
   await cloud.backgroundHandler(req, getStore({ name: 'paperquest-private-v1', consistency: 'strong' }));
 }

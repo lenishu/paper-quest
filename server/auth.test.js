@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-process.env.NETLIFY = 'true';
+process.env.PAPERQUEST_HOSTED = 'true';
 process.env.GOOGLE_CLIENT_ID = 'test.apps.googleusercontent.com';
 process.env.PAPERQUEST_AUTH_SECRET = crypto.randomBytes(32).toString('hex');
 process.env.PAPERQUEST_DEVELOPER_EMAILS = 'owner@gmail.com';

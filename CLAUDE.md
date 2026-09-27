@@ -23,6 +23,9 @@ server/            Node + Express API (no build step)
   pdfToMd.js       PDF→Markdown: docling (default, Python) → pdf.js fallback
   references.js    Semantic Scholar reference/citation lookup (needs internet)
   demo.js          hard-coded demo project (works with no API key)
+  cloud.js         hosted mode: encrypted per-workspace snapshots, background jobs (Vercel and Netlify)
+  pgStore.js       Postgres store for hosted mode on Vercel (Neon); same calls as Netlify Blobs
+api/index.mjs      Vercel function: all /api routes -> cloud.js (vercel.json: build, rewrites, headers)
 client/src/
   main.jsx → App.jsx   shell: TopBar + Sidebar + views (Dashboard/ProjectsView/ExploreView/PathsView/ProjectView)
   components/          one concern each (BrainMap/Galaxy3D = galaxy, SkillTreeCanvas = map, LearnModal = lesson+quiz, CareerView = career path, PaperReader, NodePanel, etc.)
@@ -62,4 +65,4 @@ No auth (single-user localhost). Secrets = provider API keys in `data/settings.j
 Unit tests for `graphUtil` (sanitize/repair/states); ESLint + Prettier; a smoke test for the API; split `server/index.js` into `routes/`; TypeScript for shared node/graph types. Ask before large refactors — parallel edits happen in this repo.
 
 ## Hosted deployment
-Netlify support is documented in `wiki/hosting.md`. Hosted builds have private recovery-key workspaces, encrypted Netlify Blobs persistence, and background jobs. The local app keeps its file-based behavior. Node 22.13+ is required. Never deploy local `data/`; never serve the local unauthenticated Express process publicly.
+Vercel (Hobby) + Neon Postgres is the current host: `wiki/hosting-vercel.md`. Netlify support remains in `wiki/hosting.md`. Hosted builds (flag `PAPERQUEST_HOSTED`) have private recovery-key workspaces, encrypted persistence (Postgres on Vercel, Blobs on Netlify), and background jobs. The local app keeps its file-based behavior. Node 22.13+ is required. Never deploy local `data/`; never serve the local unauthenticated Express process publicly.

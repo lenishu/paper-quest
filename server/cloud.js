@@ -1,4 +1,4 @@
-// Netlify adapter: encrypted, per-workspace durable snapshots and long-running jobs.
+// Hosted adapter (Vercel or Netlify): encrypted, per-workspace durable snapshots and long-running jobs.
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');

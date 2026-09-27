@@ -5,7 +5,7 @@ read that ONE page, then open only the files it names. Do not scan the repo.
 
 | Task ("I need to change…") | Read | Files you will touch |
 |---|---|---|
-| Netlify deployment, Google accounts, developer recovery, hosted background jobs, local project import | [hosting.md](hosting.md) | `netlify.toml`, `netlify/functions/`, `server/cloud.js`, `server/auth.js`, `server/backup.js`, `server/workspace.js`, `scripts/export-workspace.js`, `scripts/stage-developer-backup.js`, `client/src/api.js`, `WorkspaceSettings.jsx`, `AccountSettings.jsx` |
+| Vercel or Netlify deployment, Google accounts, developer recovery, hosted background jobs, local project import | [hosting-vercel.md](hosting-vercel.md) (Vercel + Neon, current), [hosting.md](hosting.md) (shared parts, Netlify) | `vercel.json`, `api/index.mjs`, `server/pgStore.js`, `netlify.toml`, `netlify/functions/`, `server/cloud.js`, `server/auth.js`, `server/backup.js`, `server/workspace.js`, `scripts/export-workspace.js`, `scripts/stage-developer-backup.js`, `client/src/api.js`, `WorkspaceSettings.jsx`, `AccountSettings.jsx` |
 | An API endpoint (add/modify/fix a route) | [server/api.md](server/api.md) | `server/index.js` |
 | Concept-graph extraction, merge, repair, tiers, XP math | [server/ai-pipeline.md](server/ai-pipeline.md) | `server/prompts.js`, `server/graphUtil.js`, analyze route in `server/index.js` |
 | LLM providers, timeouts, JSON parsing of model output | [server/ai-pipeline.md](server/ai-pipeline.md) | `server/llm.js` |

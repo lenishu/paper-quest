@@ -11,7 +11,7 @@ const { pdfToMarkdown } = require('./pdfToMd');
 const { resolveReferences, expandPaper, MODES } = require('./references');
 const { DEMO_NODES, DEMO_PAPER_MD, DEMO_LESSON_LINEAR_ALGEBRA } = require('./demo');
 
-if (!process.env.NETLIFY) store.init();
+if (!process.env.PAPERQUEST_HOSTED) store.init();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,7 +20,7 @@ app.use(express.json({ limit: '10mb' }));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: (process.env.NETLIFY ? 4 : 80) * 1024 * 1024 }
+  limits: { fileSize: (process.env.PAPERQUEST_HOSTED ? 4 : 80) * 1024 * 1024 }
 });
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);

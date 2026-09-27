@@ -246,6 +246,6 @@ as paper analysis and lessons. Details: [wiki/career.md](wiki/career.md).
 
 **Rule of thumb:** AI is used exactly where judgment about *content* is needed (what math a paper stands on, how to teach a concept). Every *mechanic* — scoring, unlocking, progress, gamification, rendering — is ordinary local code, so it's fast, free, and reproducible.
 
-## Netlify hosting
+## Hosting (Vercel or Netlify)
 
-The hosted build uses Netlify Functions plus private encrypted workspace snapshots in Netlify Blobs. Slow AI, uploads, and reference lookups run as background jobs. Recovery-key cookies identify workspaces; local data is not deployed. See `wiki/hosting.md` for limits, concurrency, and recovery behavior.
+The hosted build runs one entry point per host, both calling `server/cloud.js`: `api/index.mjs` on Vercel, with encrypted workspace snapshots in Postgres through `server/pgStore.js`, and Netlify Functions with Netlify Blobs. Vercel is the current host; see `wiki/hosting-vercel.md`. Slow AI, uploads, and reference lookups run as background jobs. Recovery-key cookies identify workspaces; local data is not deployed. See `wiki/hosting.md` for limits, concurrency, and recovery behavior.

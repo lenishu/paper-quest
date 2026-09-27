@@ -49,4 +49,4 @@ is set in Settings.
 key). `POST /api/projects/demo` seeds a project from these. If the node shape
 changes (see storage.md), update DEMO_NODES to match.
 
-Netlify uses PDF.js 6 (Node 22.13+) and a 4 MB upload limit. Docling remains available only in local mode. Long uploads run through the hosted background worker; see `../hosting.md`.
+Hosted mode (Vercel or Netlify) uses PDF.js 6 (Node 22.13+) and a 4 MB upload limit; both hosts must bundle `pdf.worker.mjs` explicitly. Docling remains available only in local mode. Long uploads run through the hosted background worker; see `../hosting.md`.

@@ -7,3 +7,4 @@ graphify-out/
 .netlify/
 .env
 .env.*
+.vercel/

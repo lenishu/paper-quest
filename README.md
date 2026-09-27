@@ -4,17 +4,17 @@ Drop any research paper (PDF or Markdown) into a project. PaperQuest converts it
 
 No chat interface. Just: *this paper has these foundations — start climbing.*
 
-## Hosted app on Netlify (free plan)
+## Hosted app (Vercel, free Hobby plan)
 
-The hosted app runs at https://paper-questapp.netlify.app. The full app can run on a Netlify credit-based Free plan: build command `npm run build`, publish directory `client/dist`, and functions from `netlify/functions`. The checked-in `netlify.toml` supplies these settings. GitHub Pages supports static websites and cannot run this app's API.
+The full app runs on Vercel's free Hobby plan with a free Neon Postgres database. The checked-in `vercel.json` supplies the build settings (Vite preset, output `client/dist`) and routes `/api` to one function, `api/index.mjs`. Setup steps are in [Vercel hosting](wiki/hosting-vercel.md). The Netlify configuration (`netlify.toml`, `netlify/functions`) still works for Netlify deployments. GitHub Pages supports static websites and cannot run this app's API.
 
-Each browser gets a separate encrypted workspace, saved persistently in Netlify Blobs. Open **Settings → Your account** to sign up or sign in with Google (requires the site owner's [Google setup](wiki/hosting.md#google-accounts-and-developer-recovery)). First sign-up links your current workspace; returning accounts reopen their saved workspace on any device. You can also save your **recovery key**. Anyone with that key can access the workspace. Sign out opens a fresh guest workspace. Your existing local papers and API keys are never uploaded by deployment.
+Each browser gets a separate encrypted workspace, saved persistently in the host's storage (Postgres on Vercel, Blobs on Netlify). Open **Settings → Your account** to sign up or sign in with Google (requires the site owner's [Google setup](wiki/hosting.md#google-accounts-and-developer-recovery)). First sign-up links your current workspace; returning accounts reopen their saved workspace on any device. You can also save your **recovery key**. Anyone with that key can access the workspace. Sign out opens a fresh guest workspace. Your existing local papers and API keys are never uploaded by deployment.
 
 Lost the old recovery key? **Developer access** lets an approved Google account preview and restore a private backup staged by the site owner. Restore keeps newer projects and includes previous papers, lessons, notes and progress; conflicting projects or progress stop recovery without overwriting your data. It does not decrypt a lost-key cloud workspace: a local backup is required. You can also use **Import local projects** below without developer access.
 
 To bring your local projects online, run `npm run workspace:export` in this folder. In the hosted app, open **Settings → Import local projects** and choose `.netlify/paperquest-projects-backup.json`. Import into an empty workspace. The backup includes projects, original papers, saved lessons and chats, notes, bookmarks, progress and XP; it excludes API keys and career/resume documents. Keep the backup private. Your local files remain unchanged.
 
-Hosted uploads are limited to **4 MB per file**, with **24 MB per workspace**. AI jobs run in the background; cached lessons remain free to reopen. Visitors use their own provider API keys, and provider charges are separate from hosting. Netlify Free has finite monthly credits and pauses sites at its limit. Custom AI endpoints require the site owner to enable their trusted HTTPS origin. See [hosting details](wiki/hosting.md).
+Hosted uploads are limited to **4 MB per file**, with **24 MB per workspace**. AI jobs run in the background; cached lessons remain free to reopen. Visitors use their own provider API keys, and provider charges are separate from hosting. Vercel Hobby stops any single task after 5 minutes, so an unusually long AI job can time out; Netlify Free pauses sites when its monthly credits run out. Custom AI endpoints require the site owner to enable their trusted HTTPS origin. See [hosting details](wiki/hosting.md).
 
 ## Requirements
 
@@ -61,7 +61,7 @@ First steps:
 
 ## Where your data lives
 
-When running locally, everything is in the `data/` folder. Hosted workspaces use encrypted Netlify Blobs instead:
+When running locally, everything is in the `data/` folder. Hosted workspaces use encrypted snapshots in the host's storage instead (Postgres on Vercel, Netlify Blobs on Netlify):
 
 - `data/settings.json` — AI connections (provider, key, model, base URL), which one is active, and an optional Semantic Scholar key (keys never leave your machine except to the provider they belong to)
 - `data/projects/<id>/papers/*.md` — the converted Markdown files

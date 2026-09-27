@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-process.env.NETLIFY = 'true';
+process.env.PAPERQUEST_HOSTED = 'true';
 const cloud = require('./cloud');
 
 class MemoryBlobs {

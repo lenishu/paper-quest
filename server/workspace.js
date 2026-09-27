@@ -5,7 +5,7 @@ const context = new AsyncLocalStorage();
 function dataDir() {
   const active = context.getStore();
   if (active) return active.directory;
-  if (process.env.NETLIFY) throw new Error('A private workspace is required.');
+  if (process.env.PAPERQUEST_HOSTED) throw new Error('A private workspace is required.');
   return path.join(__dirname, '..', 'data');
 }
 

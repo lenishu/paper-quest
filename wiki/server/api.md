@@ -6,7 +6,7 @@ for clean 4xx/5xx. Static: serves `client/dist` (Vite build output) with SPA fal
 
 ## Route groups (all under /api)
 
-Netlify wraps these routes with private-workspace sessions and background jobs.
+The hosted entry points (`api/index.mjs` on Vercel, `netlify/functions/` on Netlify) wrap these routes with private-workspace sessions and background jobs.
 `/session`, `/session/recovery`, `/session/restore`, and `/jobs/:id` are handled
 by `server/cloud.js`, not Express. See [hosting.md](../hosting.md). Express is
 exported for the adapter and listens on a port only when run directly.

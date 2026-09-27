@@ -5,7 +5,7 @@ const store = require('./store');
 const TIMEOUT_MS = 240000;
 
 async function timedFetch(url, opts) {
-  if (process.env.NETLIFY) {
+  if (process.env.PAPERQUEST_HOSTED) {
     const target = new URL(url);
     const allowed = new Set(Object.values(store.PROVIDERS).filter((p) => p.baseUrl).map((p) => new URL(p.baseUrl).origin));
     for (const origin of (process.env.PAPERQUEST_ALLOWED_AI_ORIGINS || '').split(',').filter(Boolean)) allowed.add(origin.trim());
@@ -16,7 +16,7 @@ async function timedFetch(url, opts) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    return await fetch(url, { ...opts, redirect: process.env.NETLIFY ? 'error' : 'follow', signal: ctrl.signal });
+    return await fetch(url, { ...opts, redirect: process.env.PAPERQUEST_HOSTED ? 'error' : 'follow', signal: ctrl.signal });
   } finally {
     clearTimeout(t);
   }

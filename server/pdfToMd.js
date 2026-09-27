@@ -18,7 +18,7 @@ function execFileP(cmd, args, opts) {
 
 let doclingChecked = null;
 async function hasDocling() {
-  if (process.env.NETLIFY) return false;
+  if (process.env.PAPERQUEST_HOSTED) return false;
   if (doclingChecked !== null) return doclingChecked;
   try { await execFileP('docling', ['--version'], { timeout: 15000 }); doclingChecked = true; }
   catch { doclingChecked = false; }
