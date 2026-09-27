@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PaperQuest — Knowledge Galaxy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#080B14;--sidebar:#0B0F1C;--surface:#10162A;--surface2:#161D33;--line:#232C48;
+  --text:#E8ECF8;--dim:#A6ADC8;--muted:#6B7394;
+  --primary:#7C5CFF;--primary2:#9B7BFF;--secondary:#22D3EE;
+  --mastered:#34D399;--learning:#7C5CFF;--ready:#FBBF24;--locked:#5A6486;--core:#FB7185;
+  --fd:'Space Grotesk',system-ui,sans-serif;--fu:'Inter',system-ui,sans-serif;--fm:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(1200px 700px at 78% -10%,rgba(124,92,255,.12),transparent 60%),var(--bg);color:var(--text);font-family:var(--fu);font-size:14px}
+a{color:inherit;text-decoration:none}
+.app{display:flex;height:100vh;overflow:hidden}
+/* sidebar */
+.side{width:236px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px;padding:16px 14px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:600;font-size:17px}
+.brand svg{filter:drop-shadow(0 0 8px rgba(124,92,255,.5))}
+.prof{display:flex;gap:11px;align-items:center}
+.ava{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--secondary));display:grid;place-items:center;font-weight:700}
+.pname{font-weight:700}.prole{font-size:12px;color:var(--dim)}.plvl{font-size:11px;color:var(--primary2);font-family:var(--fm)}
+.xpn{font-family:var(--fm);font-size:12px;margin-bottom:5px}.xpn span{color:var(--muted)}
+.xpbar{height:6px;background:var(--surface2);border-radius:6px;overflow:hidden}.xpbar>div{height:100%;background:linear-gradient(90deg,var(--primary),var(--secondary))}
+.stats{display:flex;justify-content:space-between;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px}
+.stats b{display:block;font-family:var(--fd);font-size:17px}.stats span{font-size:10.5px;color:var(--dim)}
+.streak{font-size:12px;color:var(--dim);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px}.streak b{color:var(--ready);font-family:var(--fm)}
+.slabel{font-family:var(--fm);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.qa{display:flex;flex-direction:column;gap:2px}
+.qa button{text-align:left;background:none;border:none;color:var(--dim);padding:9px 10px;border-radius:9px;cursor:pointer;font:inherit;font-size:13px}
+.qa button:hover{background:var(--surface);color:var(--text)}
+.quote{margin-top:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;color:var(--dim)}
+.quote b{color:var(--primary);font-family:var(--fd);font-size:22px;display:block;line-height:.5}
+.quote .by{color:var(--muted);font-size:11px;margin-top:6px}
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:14px;padding:12px 22px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:6px}
+.tab{background:none;border:none;color:var(--dim);font-weight:600;padding:7px 15px;border-radius:10px;cursor:pointer;font:inherit}
+.tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+.search{margin-left:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--text);width:260px;font:inherit}
+.content{flex:1;min-height:0;overflow-y:auto;padding:20px 22px 40px}
+.hero{background:linear-gradient(180deg,#0d1428,#0a0e1c);border:1px solid var(--line);border-radius:18px;padding:18px 20px;margin-bottom:16px}
+.htitle{font-family:var(--fd);font-size:26px;font-weight:600;margin:0}
+.hsub{color:var(--dim);font-size:13px;margin:2px 0 0}
+.galaxy{position:relative;height:44vh;min-height:320px;margin-top:12px;border-radius:14px;overflow:hidden;background:#060912;border:1px solid var(--line)}
+.galaxy-hint{position:absolute;left:16px;bottom:12px;font-size:11px;color:var(--muted);font-family:var(--fm);pointer-events:none}
+.galaxy-legend{position:absolute;right:14px;top:12px;display:flex;gap:12px;font-size:11px;color:var(--dim);background:rgba(10,14,28,.6);border:1px solid var(--line);border-radius:20px;padding:6px 12px}
+.galaxy-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:-1px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.chead{display:flex;justify-content:space-between;font-family:var(--fm);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:12px}
+.chead button{background:none;border:none;color:var(--primary2);cursor:pointer;font:inherit;font-size:12px}
+.prow{display:grid;grid-template-columns:1fr 70px auto;align-items:center;gap:10px;background:none;border:none;color:var(--text);cursor:pointer;font:inherit;text-align:left;padding:5px 0;width:100%}
+.prow:hover .pn{color:var(--primary2)}
+.pn{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb{height:6px;background:var(--surface2);border-radius:6px;overflow:hidden}.pb>i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--secondary))}
+.ppct{font-family:var(--fm);font-size:11px;color:var(--dim)}
+.donut{width:150px;height:150px;display:block;margin:0 auto}
+.dnum{fill:var(--text);font-family:var(--fd);font-size:26px;font-weight:600}.dlbl{fill:var(--dim);font-size:10px;font-family:var(--fm)}
+.kleg{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:12px;font-size:12px;color:var(--dim)}
+.kleg span{display:flex;align-items:center;gap:6px}.kleg i{width:9px;height:9px;border-radius:2px}.kleg b{color:var(--text);margin-left:auto;font-family:var(--fm)}
+.heat{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+.hc{aspect-ratio:1;border-radius:3px;background:var(--surface2)}.hc.l1{background:#1c3a2e}.hc.l2{background:#226b46}.hc.l3{background:#2ba05f}.hc.l4{background:var(--mastered)}
+.rec .rn{font-family:var(--fd);font-weight:600;font-size:16px}.rec .rm{font-family:var(--fm);font-size:11px;color:var(--dim);margin:4px 0 12px}
+.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;width:100%;font:inherit}
+.btn:hover{box-shadow:0 0 20px rgba(124,92,255,.4)}
+.bars{display:flex;flex-direction:column;gap:9px}
+.brow{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:8px}
+.bnm{font-size:12px;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btr{height:7px;background:var(--surface2);border-radius:6px;overflow:hidden}.btr>i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--secondary))}
+.bpc{font-family:var(--fm);font-size:11px;color:var(--dim);text-align:right}
+.recent{display:flex;flex-direction:column;gap:7px}.rr{display:flex;justify-content:space-between;gap:10px;font-size:12.5px}.rr .t{color:var(--dim)}.rr b{color:var(--text)}.rr .tm{font-family:var(--fm);font-size:10.5px;color:var(--muted);white-space:nowrap}
+.tip{position:fixed;z-index:50;background:rgba(18,22,36,.97);border:1px solid var(--line);border-radius:10px;padding:8px 11px;pointer-events:none;font-size:12.5px;max-width:240px;display:none}
+.tip .tn{font-weight:700}.tip .tm{font-family:var(--fm);font-size:10.5px;color:var(--dim);text-transform:capitalize}
+.loading{display:grid;place-items:center;height:100%;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="app" id="app"><div class="loading">Loading your galaxy…</div></div>
+<div class="tip" id="tip"></div>
+<script src="https://unpkg.com/3d-force-graph"></script>
+<script>
+const API='/api';
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+const nf=n=>Number(n||0).toLocaleString();
+const go=q=>{location.href='/'+ (q?('?'+q):'');};
+const ago=t=>{const s=(Date.now()-t)/1000;return s<3600?Math.max(1,Math.floor(s/60))+'m ago':s<86400?Math.floor(s/3600)+'h ago':Math.floor(s/86400)+'d ago';};
+const STATE={mastered:getCss('--mastered'),ready:getCss('--ready'),learning:getCss('--learning'),locked:getCss('--locked')};
+const BRANCH=['#7C5CFF','#4F7BFF','#22D3EE','#34D399','#FBBF24','#FB923C','#F472B6','#F87171'];
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function branchColor(b){let h=0;b=(b||'').toLowerCase();for(let i=0;i<b.length;i++)h=(h*31+b.charCodeAt(i))>>>0;return BRANCH[h%BRANCH.length];}
+const LOGO='<svg width="26" height="26" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#7C5CFF"/><stop offset="1" stop-color="#22D3EE"/></linearGradient></defs><path d="M16 1 L18.4 13.6 L31 16 L18.4 18.4 L16 31 L13.6 18.4 L1 16 L13.6 13.6 Z" fill="url(#g)"/><circle cx="16" cy="16" r="3.2" fill="#fff"/></svg>';
+const EV={paper_added:'📄 Uploaded paper',paper_analyzed:'🧠 Mapped paper',lesson_generated:'📖 Opened lesson',concept_mastered:'✓ Mastered',concept_skipped:'◆ Marked known',concept_viewed:'👁 Reviewed',project_created:'🌱 New project'};
+
+async function main(){
+  let d;
+  try{ d=await (await fetch(API+'/dashboard')).json(); }
+  catch(e){ document.getElementById('app').innerHTML='<div class="loading">Could not reach the server. Start PaperQuest (start.bat), then open this at http://localhost:3001/dc</div>'; return; }
+  render(d);
+}
+
+function render(d){
+  const p=d.profile||{},k=d.knowledge||{},st=d.stats||{};
+  const app=document.getElementById('app');app.innerHTML='';
+  // sidebar
+  const side=el('aside','side');
+  side.appendChild(el('div','brand',LOGO+'<span>PaperQuest</span>'));
+  side.appendChild(el('div','prof','<div class="ava">'+((p.title||'P')[0])+'</div><div><div class="pname">Lenish</div><div class="prole">'+(p.title||'Novice')+'</div><div class="plvl">Level '+(p.level||0)+'</div></div>'));
+  side.appendChild(el('div',null,'<div class="xpn">'+nf(p.xp)+' <span>/ '+nf(p.nextLevelXp)+' XP</span></div><div class="xpbar"><div style="width:'+Math.round((p.progress||0)*100)+'%"></div></div>'));
+  side.appendChild(el('div','stats','<div><b>'+(st.concepts||0)+'</b><span>Concepts</span></div><div><b>'+(st.lessons||0)+'</b><span>Lessons</span></div><div><b>'+(st.projects||0)+'</b><span>Projects</span></div>'));
+  side.appendChild(el('div','streak','🔥 <b>'+(d.streak||0)+'</b> Day Streak'));
+  side.appendChild(el('div','slabel','Quick actions'));
+  const qa=el('div','qa');
+  [['⬆ Upload paper',()=>go('new=1')],['＋ New project',()=>go('new=1')],['◎ Explore concepts',()=>document.querySelector('.galaxy').scrollIntoView({behavior:'smooth'})],['⚙ Settings',()=>go('settings=1')]].forEach(([t,fn])=>{const b=el('button',null,t);b.onclick=fn;qa.appendChild(b);});
+  side.appendChild(qa);
+  side.appendChild(el('div','quote','<b>&ldquo;</b><div>The beautiful thing about learning is that no one can take it away from you.</div><div class="by">— B.B. King</div>'));
+  app.appendChild(side);
+
+  // main
+  const main=el('div','main');
+  const top=el('div','top');
+  const tabs=el('div','tabs');
+  [['Dashboard',true,()=>{}],['Projects',false,()=>go('view=projects')],['Explore',false,()=>document.querySelector('.galaxy').scrollIntoView({behavior:'smooth'})]].forEach(([t,act,fn])=>{const b=el('button','tab'+(act?' active':''),t);b.onclick=fn;tabs.appendChild(b);});
+  top.appendChild(tabs);
+  const search=el('input','search');search.placeholder='Search concepts…';
+  search.onkeydown=e=>{if(e.key==='Enter'&&search.value.trim())go('q='+encodeURIComponent(search.value.trim()));};
+  top.appendChild(search);
+  main.appendChild(top);
+
+  const content=el('div','content');
+  // hero + galaxy
+  const hero=el('div','hero','<h1 class="htitle">Your Knowledge Galaxy</h1><p class="hsub">Explore concepts. Unlock understanding.</p>');
+  const galaxy=el('div','galaxy');galaxy.id='galaxy';
+  galaxy.appendChild(el('div','galaxy-legend','<span><i style="background:'+STATE.mastered+'"></i>known</span><span><i style="background:'+STATE.ready+'"></i>ready</span><span><i style="background:'+STATE.locked+'"></i>not yet</span>'));
+  galaxy.appendChild(el('div','galaxy-hint','drag to rotate · scroll to zoom · click a node'));
+  hero.appendChild(galaxy);content.appendChild(hero);
+
+  // grid
+  const grid=el('div','grid');
+  // projects
+  const cp=el('div','card');const ch=el('div','chead','<span>Projects</span>');const nb=el('button',null,'+ New');nb.onclick=()=>go('new=1');ch.appendChild(nb);cp.appendChild(ch);
+  (d.projects||[]).slice(0,5).forEach(pr=>{const b=el('button','prow','<span class="pn">'+pr.name+'</span><span class="pb"><i style="width:'+Math.round(pr.progress*100)+'%"></i></span><span class="ppct">'+pr.done+'/'+pr.total+'</span>');b.onclick=()=>go('project='+pr.id);cp.appendChild(b);});
+  if(!(d.projects||[]).length)cp.appendChild(el('div',null,'<span style="color:var(--dim);font-size:12px">No projects yet.</span>'));
+  grid.appendChild(cp);
+  // heatmap
+  const chh=el('div','card');chh.appendChild(el('div','chead','<span>Daily activity</span>'));
+  const mx=Math.max(1,...(d.heat||[]).map(h=>h.count));const lvl=c=>c===0?0:c>=mx*.75?4:c>=mx*.5?3:c>=mx*.25?2:1;
+  const heat=el('div','heat');(d.heat||[]).forEach(h=>{const c=el('i','hc l'+lvl(h.count));c.title=h.date+': '+h.count;heat.appendChild(c);});chh.appendChild(heat);grid.appendChild(chh);
+  // knowledge donut
+  const ck=el('div','card');ck.appendChild(el('div','chead','<span>Knowledge overview</span>'));
+  const seg=[['Mastered',k.mastered,STATE.mastered],['Learning',k.learning,STATE.learning],['Ready',k.ready,STATE.ready],['Locked',k.locked,STATE.locked]];
+  const tot=seg.reduce((a,s)=>a+s[1],0)||1;const R=52,CIRC=2*Math.PI*R;let off=0;
+  let arcs='';seg.forEach(s=>{const len=s[1]/tot*CIRC;arcs+='<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="'+s[2]+'" stroke-width="14" stroke-dasharray="'+len+' '+(CIRC-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 70 70)"/>';off+=len;});
+  ck.appendChild(el('div',null,'<svg class="donut" viewBox="0 0 140 140"><circle cx="70" cy="70" r="'+R+'" fill="none" stroke="var(--line)" stroke-width="14"/>'+arcs+'<text x="70" y="66" text-anchor="middle" class="dnum">'+(k.total||0)+'</text><text x="70" y="84" text-anchor="middle" class="dlbl">concepts</text></svg>'));
+  ck.appendChild(el('div','kleg',seg.map(s=>'<span><i style="background:'+s[2]+'"></i>'+s[0]+'<b>'+s[1]+'</b></span>').join('')));
+  grid.appendChild(ck);
+  // recommended
+  const cr=el('div','card');cr.appendChild(el('div','chead','<span>Recommended next</span>'));
+  if(d.recommended){const r=d.recommended;const box=el('div','rec','<div class="rn">'+r.name+'</div><div class="rm">'+r.branch+' · '+r.tier+(r.unblocks?' · unlocks '+r.unblocks:'')+'</div>');const b=el('button','btn',null);b.textContent='Start lesson →';b.onclick=()=>go('project='+r.projectId+'&tab=map&sel='+r.id);box.appendChild(b);cr.appendChild(box);}
+  else cr.appendChild(el('div',null,'<span style="color:var(--dim);font-size:12px">Nothing ready yet.</span>'));
+  grid.appendChild(cr);
+  // branch bars
+  const cb=el('div','card');cb.appendChild(el('div','chead','<span>Skills by branch</span>'));
+  const bars=el('div','bars');(d.branches||[]).slice(0,6).forEach(b=>bars.appendChild(el('div','brow','<span class="bnm">'+b.name+'</span><span class="btr"><i style="width:'+b.pct+'%"></i></span><span class="bpc">'+b.pct+'%</span>')));cb.appendChild(bars);grid.appendChild(cb);
+  // recent
+  const cre=el('div','card');cre.appendChild(el('div','chead','<span>Recent activity</span>'));
+  const rec=el('div','recent');(d.recent||[]).forEach(e=>rec.appendChild(el('div','rr','<span class="t">'+(EV[e.type]||e.type)+(e.name?' · <b>'+e.name+'</b>':'')+'</span><span class="tm">'+ago(e.t)+'</span>')));cre.appendChild(rec);grid.appendChild(cre);
+
+  content.appendChild(grid);main.appendChild(content);app.appendChild(main);
+
+  buildGalaxy(d.galaxy||{concepts:[],edges:[]});
+}
+
+function buildGalaxy(g){
+  const mount=document.getElementById('galaxy');
+  if(typeof ForceGraph3D==='undefined'){mount.appendChild(el('div','loading','3D view needs internet to load. Concepts: '+(g.concepts.length)+'.'));return;}
+  const nodes=g.concepts.map(c=>({id:c.id,name:c.name,branch:c.branch,tier:c.tier,state:c.state,core:c.core,projects:c.projects}));
+  const ids=new Set(nodes.map(n=>n.id));
+  const links=(g.edges||[]).filter(e=>ids.has(e.from)&&ids.has(e.to)).map(e=>({source:e.from,target:e.to}));
+  const color=n=>n.state==='mastered'?STATE.mastered:n.state==='ready'?STATE.ready:branchColor(n.branch);
+  const tip=document.getElementById('tip');
+  const Graph=ForceGraph3D()(mount)
+    .backgroundColor('#060912')
+    .graphData({nodes,links})
+    .nodeVal(n=>n.core?6:n.tier==='advanced'?3:n.tier==='intermediate'?2:1.4)
+    .nodeColor(color)
+    .nodeOpacity(0.95)
+    .nodeResolution(12)
+    .linkColor(()=>'rgba(140,150,200,0.18)')
+    .linkWidth(0.4)
+    .linkDirectionalParticles(0)
+    .onNodeHover(n=>{ mount.style.cursor=n?'pointer':'grab'; if(n){tip.style.display='block';tip.innerHTML='<div class="tn">'+(n.core?'★ ':'')+n.name+'</div><div class="tm">'+n.branch+' · '+n.tier+' · '+(n.state==='mastered'?'known':n.state==='ready'?'ready to learn':'not yet')+'</div>';}else tip.style.display='none'; })
+    .onNodeClick(n=>{ if(n.projects&&n.projects[0]) go('project='+n.projects[0].id+'&tab=map&sel='+n.id); });
+  document.addEventListener('mousemove',e=>{ if(tip.style.display==='block'){tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';} });
+  const resize=()=>Graph.width(mount.clientWidth).height(mount.clientHeight);resize();window.addEventListener('resize',resize);
+  Graph.cameraPosition({z:320});
+}
+main();
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+/* PaperQuest design tokens
+ * ---------------------------------------------------------------------------
+ * SHIPPING: transcribed verbatim from client/src/styles.css :root.
+ * Anything below the PROPOSED banner does NOT exist in the codebase yet —
+ * adopting it is a decision, not a copy-paste. See AUDIT.md.
+ */
+
+:root {
+  /* --- surfaces: bg is warm off-white, surface is WHITE and sits above it --- */
+  --bg: #F7F6F3;
+  --surface: #FFFFFF;
+  --surface-2: #F2F1ED;
+  --surface-3: #EBE9E4;
+  --line: #E6E4DE;
+  --line-2: #D6D3CD;
+
+  /* --- text --- */
+  --text: #1B1917;
+  --text-2: #57534E;
+  --muted: #98938B;
+
+  /* --- accents: primary = action, secondary = navigation/reference --- */
+  --primary: #E4572E;
+  --primary-h: #C94A26;
+  --secondary: #2E86AB;
+
+  /* --- semantic --- */
+  --green: #1F9D57;
+  --amber: #F59E0B;    /* fills and borders only */
+  --amber-t: #B45309;  /* the text-safe pair     */
+  --danger: #DC2626;
+
+  /* --- the one dark band (hero + dark stat cards). NOT a dark theme. --- */
+  --hero-bg: #131110;
+  --hero-line: #262220;
+  --hero-text: #F4F1EC;
+
+  /* --- gradients --- */
+  --grad: linear-gradient(90deg, #E4572E, #2E86AB);
+  --grad-135: linear-gradient(135deg, #E4572E, #2E86AB);
+
+  /* --- type --- */
+  --fd: 'Space Grotesk', system-ui, sans-serif;   /* display, numbers   */
+  --fu: 'Inter', system-ui, sans-serif;           /* body, UI (default) */
+  --fm: 'JetBrains Mono', ui-monospace, monospace;/* labels, eyebrows   */
+
+  /* --- radius (9/11 are deliberately odd — keep them) --- */
+  --r-sm: 9px;
+  --r-md: 11px;
+  --r-lg: 16px;
+
+  /* --- elevation (warm-tinted, never pure black) --- */
+  --sh-1: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --sh-2: 0 16px 48px rgba(28, 25, 23, 0.18);
+
+  /* --- spacing (added 2026-07-27). New code uses these — no new literals.
+         The ~25 pre-existing ad-hoc values are not yet migrated. --- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* --- type scale. --fs-sm (13px) is the workhorse. --- */
+  --fs-label: 11px;
+  --fs-xs: 12.5px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 19px;
+  --fs-display: 28px;
+
+  /* --- motion --- */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* --- focus --- */
+  --ring-w: 2px;
+  --ring-offset: 2px;
+}
+
+/* Canonical text field. Deliberately no `outline: none` — that is exactly what
+   removed the focus state everywhere else. */
+.input {
+  width: 100%; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 7px 10px; font-size: var(--fs-sm); color: var(--text);
+}
+.input:focus { border-color: var(--secondary); }
+.input::placeholder { color: var(--muted); }
+
+/* MUST be the last rules in the stylesheet: several field styles set
+   `outline: none`, and at equal specificity the later declaration wins.
+   Longhands, not `outline: var(--ring)` — a var() inside a shorthand resolves
+   at computed-value time and takes the whole declaration down with it if
+   anything is off, which degraded to a grey ring on some controls. */
+:focus-visible {
+  outline-width: var(--ring-w);
+  outline-style: solid;
+  outline-color: var(--primary);
+  outline-offset: var(--ring-offset);
+}
+input:focus-visible, textarea:focus-visible, .input:focus-visible { outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* !important is required: Confetti sets animation-duration as an inline style. */
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===========================================================================
+ * STILL OPEN — see AUDIT.md priorities 1, 3 and 4.
+ *  1. The ~25 spacing and ~26 type literals in styles.css are NOT yet migrated
+ *     onto the tokens above. That is a sweeping edit; ask before doing it.
+ *  3. Canvas colour: SkillTreeCanvas.jsx still hardcodes a COLORS table.
+ *     Convert it to readTokens() (see ReferenceGraph.jsx).
+ *  4. Branch palette — a design decision, not a cleanup.
+ * ======================================================================== */
+
+/* Branch palette lives in client/src/graphLayout.js, not here — 10 hues picked
+ * by hashing the branch name. Open design question: re-tune to the warm palette
+ * and assign deterministically instead of by hash. See TOKENS.md. */

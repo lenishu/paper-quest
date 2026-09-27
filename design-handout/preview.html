@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PaperQuest — design system preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:#F7F6F3; --surface:#FFFFFF; --surface-2:#F2F1ED; --surface-3:#EBE9E4;
+  --line:#E6E4DE; --line-2:#D6D3CD;
+  --text:#1B1917; --text-2:#57534E; --muted:#98938B;
+  --primary:#E4572E; --primary-h:#C94A26; --secondary:#2E86AB;
+  --green:#1F9D57; --amber:#F59E0B; --amber-t:#B45309; --danger:#DC2626;
+  --hero-bg:#131110; --hero-line:#262220; --hero-text:#F4F1EC;
+  --grad:linear-gradient(90deg,#E4572E,#2E86AB);
+  --grad-135:linear-gradient(135deg,#E4572E,#2E86AB);
+  --fd:'Space Grotesk',system-ui,sans-serif;
+  --fu:'Inter',system-ui,sans-serif;
+  --fm:'JetBrains Mono',ui-monospace,monospace;
+  --r-sm:9px; --r-md:11px; --r-lg:16px;
+  --sh-1:0 1px 2px rgba(28,25,23,.05); --sh-2:0 16px 48px rgba(28,25,23,.18);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fu);font-size:14px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+h1{font-family:var(--fd);font-size:28px;margin:0 0 4px}
+h2{font-family:var(--fd);font-size:19px;margin:44px 0 4px;padding-top:24px;border-top:1px solid var(--line)}
+.eyebrow{font-family:var(--fm);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--text-2);margin:0 0 8px}
+.note{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+.grid{display:grid;gap:12px;margin-top:16px}
+.g4{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.g3{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;box-shadow:var(--sh-1);display:flex;flex-direction:column;gap:12px;min-width:0}
+.sw{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--surface)}
+.sw .chipc{height:64px}
+.sw .meta{padding:8px 10px}
+.sw code{font-family:var(--fm);font-size:11.5px;color:var(--text)}
+.sw .hex{font-family:var(--fm);font-size:11px;color:var(--muted);display:block}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.btn,.btn-primary,.btn-ghost{border-radius:10px;padding:9px 16px;font-weight:600;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--text-2);display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--fu);cursor:pointer}
+.btn:hover,.btn-ghost:hover{border-color:var(--primary);color:var(--primary)}
+.btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-h);border-color:var(--primary-h)}
+.btn-ghost{background:var(--bg)}
+.small-btn{padding:6px 12px;font-size:12.5px}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.55;cursor:default}
+.iconbtn{width:28px;height:28px;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--muted);font-size:12px;display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.iconbtn:hover{color:var(--text);border-color:var(--line-2)}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600}
+.tierchip{font-family:var(--fm);font-size:10px;letter-spacing:.05em;text-transform:uppercase;border:1px solid}
+.tier-base{background:rgba(152,147,139,.1);border-color:rgba(152,147,139,.35);color:var(--muted)}
+.tier-novice{background:rgba(31,157,87,.09);border-color:rgba(31,157,87,.35);color:var(--green)}
+.tier-intermediate{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:var(--amber-t)}
+.tier-advanced{background:rgba(228,87,46,.1);border-color:rgba(228,87,46,.4);color:var(--primary)}
+.tier-core{background:rgba(46,134,171,.1);border-color:rgba(46,134,171,.4);color:var(--secondary)}
+.toast{background:var(--text);color:#FBFAF8;border-radius:12px;padding:11px 16px;font-size:13px;box-shadow:var(--sh-2);line-height:1.45;display:inline-block}
+.toast-err{background:var(--danger)}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--primary);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bar{height:8px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--grad)}
+.dark{background:var(--hero-bg);border:1px solid var(--hero-line);color:var(--hero-text);border-radius:var(--r-lg);padding:20px}
+.type-row{display:flex;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.type-row .lbl{font-family:var(--fm);font-size:11px;color:var(--muted);width:118px;flex-shrink:0}
+.warn{border-left:3px solid var(--amber);background:rgba(245,158,11,.07);padding:12px 14px;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:13px;margin-top:14px}
+.bad{border-left-color:var(--danger);background:rgba(220,38,38,.06)}
+.dots{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+.dots .d{text-align:center;font-family:var(--fm);font-size:10px;color:var(--muted)}
+.dots i{display:block;width:26px;height:26px;border-radius:50%;margin:0 auto 5px}
+table{border-collapse:collapse;width:100%;margin-top:14px;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{font-family:var(--fm);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">Design system preview</span>
+  <h1>PaperQuest</h1>
+  <p class="lede">Rendered from the shipping tokens in <code>client/src/styles.css</code>. If something here looks wrong, the stylesheet is the truth — not this page.</p>
+
+  <h2>Colour</h2>
+  <p class="note">Nineteen tokens. Note that <code>--surface</code> is white and sits <em>above</em> <code>--bg</code> — cards lift by being lighter, not by shadow.</p>
+  <div class="grid g4">
+    <div class="sw"><div class="chipc" style="background:var(--bg)"></div><div class="meta"><code>--bg</code><span class="hex">#F7F6F3 · app canvas</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--surface)"></div><div class="meta"><code>--surface</code><span class="hex">#FFFFFF · cards</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--surface-2)"></div><div class="meta"><code>--surface-2</code><span class="hex">#F2F1ED · inset, hover</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--surface-3)"></div><div class="meta"><code>--surface-3</code><span class="hex">#EBE9E4 · tracks</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--line)"></div><div class="meta"><code>--line</code><span class="hex">#E6E4DE · borders</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--line-2)"></div><div class="meta"><code>--line-2</code><span class="hex">#D6D3CD · emphasis</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--text)"></div><div class="meta"><code>--text</code><span class="hex">#1B1917 · primary text</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--text-2)"></div><div class="meta"><code>--text-2</code><span class="hex">#57534E · secondary</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--muted)"></div><div class="meta"><code>--muted</code><span class="hex">#98938B · labels (65 uses)</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--primary)"></div><div class="meta"><code>--primary</code><span class="hex">#E4572E · action</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--primary-h)"></div><div class="meta"><code>--primary-h</code><span class="hex">#C94A26 · hover only</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--secondary)"></div><div class="meta"><code>--secondary</code><span class="hex">#2E86AB · links, nav</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--green)"></div><div class="meta"><code>--green</code><span class="hex">#1F9D57 · mastered</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--amber)"></div><div class="meta"><code>--amber</code><span class="hex">#F59E0B · fills only</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--amber-t)"></div><div class="meta"><code>--amber-t</code><span class="hex">#B45309 · amber text</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--danger)"></div><div class="meta"><code>--danger</code><span class="hex">#DC2626 · destructive</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--hero-bg)"></div><div class="meta"><code>--hero-bg</code><span class="hex">#131110 · dark band</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--grad)"></div><div class="meta"><code>--grad</code><span class="hex">XP bars, progress</span></div></div>
+    <div class="sw"><div class="chipc" style="background:var(--grad-135)"></div><div class="meta"><code>--grad-135</code><span class="hex">logo, avatars</span></div></div>
+  </div>
+
+  <div class="dark" style="margin-top:18px">
+    <span class="eyebrow" style="color:var(--muted)">The dark band</span>
+    <div style="font-family:var(--fd);font-size:19px;font-weight:600;margin-top:6px">Not a dark theme — a contrast device</div>
+    <p class="note" style="color:#A9A29C">Used only for the galaxy hero and a couple of stat cards. Extending it into a full theme is a decision, not an implementation detail.</p>
+  </div>
+
+  <h2>Typography</h2>
+  <p class="note">Three families, each with a job. No size tokens exist yet — the scale below is <em>proposed</em>, derived from the most-used literals.</p>
+  <div class="type-row"><span class="lbl">display / 28</span><span style="font-family:var(--fd);font-size:28px;font-weight:600">Your Knowledge Galaxy</span></div>
+  <div class="type-row"><span class="lbl">xl / 19</span><span style="font-family:var(--fd);font-size:19px;font-weight:600">Reference network</span></div>
+  <div class="type-row"><span class="lbl">lg / 17</span><span style="font-family:var(--fd);font-size:17px;font-weight:600">Attention Is All You Need</span></div>
+  <div class="type-row"><span class="lbl">md / 15</span><span style="font-size:15px;font-weight:600">Self-Attention</span></div>
+  <div class="type-row"><span class="lbl">base / 14</span><span style="font-size:14px">Body copy — the default. Long reading sessions, so comfort beats density.</span></div>
+  <div class="type-row"><span class="lbl">sm / 13</span><span style="font-size:13px">Dense UI and list cards — the most-used size (41 occurrences).</span></div>
+  <div class="type-row"><span class="lbl">xs / 12.5</span><span style="font-size:12.5px;color:var(--text-2)">Metadata and captions.</span></div>
+  <div class="type-row"><span class="lbl">label / 11 mono</span><span class="eyebrow">Dive deeper on this paper</span></div>
+  <div class="type-row"><span class="lbl">stat / display</span><span style="font-family:var(--fd);font-size:32px;font-weight:700">1,240 XP</span></div>
+  <div class="warn">The eyebrow is the system's signature move: mono, 11px, 600, 0.08em, uppercase, <code>--muted</code>. It does most of the work of making the app feel like an instrument. Use it; don't restyle it per screen.</div>
+
+  <h2>Components</h2>
+  <div class="grid g3">
+    <div class="card">
+      <span class="eyebrow">Buttons</span>
+      <div class="row" style="margin-top:0">
+        <button class="btn-primary">Primary</button>
+        <button class="btn">Default</button>
+        <button class="btn-ghost">Ghost</button>
+      </div>
+      <div class="row" style="margin-top:0">
+        <button class="btn small-btn">Small</button>
+        <button class="btn small-btn danger">Danger</button>
+        <button class="btn small-btn" disabled>Disabled</button>
+        <button class="iconbtn">＋</button>
+        <button class="iconbtn">－</button>
+        <button class="iconbtn">⊡</button>
+      </div>
+      <p class="note">Tab through these in the app — a 2px <code>--primary</code> outline appears (added 2026-07-27). This standalone page does not carry that rule.</p>
+    </div>
+
+    <div class="card">
+      <span class="eyebrow">Tier chips</span>
+      <div class="row" style="margin-top:0">
+        <span class="chip tierchip tier-base">Baseline</span>
+        <span class="chip tierchip tier-novice">Novice</span>
+        <span class="chip tierchip tier-intermediate">Intermediate</span>
+      </div>
+      <div class="row" style="margin-top:0">
+        <span class="chip tierchip tier-advanced">Advanced</span>
+        <span class="chip tierchip tier-core">The paper</span>
+      </div>
+      <p class="note">Recipe worth copying: hue at ~10% background, ~35% border, full-strength text.</p>
+    </div>
+
+    <div class="card">
+      <span class="eyebrow">Feedback</span>
+      <div class="row" style="margin-top:0"><span class="toast">Concept mastered · +45 XP</span></div>
+      <div class="row" style="margin-top:0"><span class="toast toast-err">Could not reach Semantic Scholar</span></div>
+      <div class="row" style="margin-top:4px"><div class="spinner"></div><span class="note" style="margin:0">Looking this paper up…</span></div>
+    </div>
+
+    <div class="card">
+      <span class="eyebrow">Progress</span>
+      <div><div class="bar"><i style="width:62%"></i></div><p class="note">XP bar — <code>--grad</code> on a <code>--surface-3</code> track</p></div>
+      <div><div class="bar"><i style="width:28%"></i></div><p class="note">Branch progress</p></div>
+    </div>
+
+    <div class="card">
+      <span class="eyebrow">Card anatomy</span>
+      <div style="font-family:var(--fd);font-size:15px;font-weight:600">Recommended next</div>
+      <div style="font-size:12.5px;color:var(--muted)">Sepp Hochreiter, J. Schmidhuber · 1997 · 89,412 cites</div>
+      <p class="note" style="margin:0">Metadata uses middle dots. Numbers in display or mono, never body.</p>
+    </div>
+
+    <div class="card">
+      <span class="eyebrow">Radius &amp; elevation</span>
+      <div class="row" style="margin-top:0">
+        <span style="width:56px;height:44px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm)"></span>
+        <span style="width:56px;height:44px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-md)"></span>
+        <span style="width:56px;height:44px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-lg)"></span>
+        <span style="width:56px;height:44px;background:var(--surface);box-shadow:var(--sh-2);border-radius:var(--r-lg)"></span>
+      </div>
+      <p class="note">9 / 11 / 16, then <code>--sh-2</code>. The odd radii are deliberate. Shadows are warm-tinted, never pure black.</p>
+    </div>
+  </div>
+
+  <h2>Graph colour semantics</h2>
+  <p class="note">Two independent channels. Never encode state with a branch hue or the reverse.</p>
+  <table>
+    <tr><th>Channel</th><th>Encodes</th><th>How</th></tr>
+    <tr><td>State</td><td>locked / ready / done / core</td><td><code>--muted</code> · <code>--primary</code> · <code>--green</code> · <code>--secondary</code></td></tr>
+    <tr><td>Category</td><td>branch of maths</td><td>stripe or fill from <code>BRANCH_PALETTE</code></td></tr>
+    <tr><td>Size</td><td>free — citations in the reference map</td><td>radius, log-scaled</td></tr>
+  </table>
+
+  <div class="dots">
+    <span class="d"><i style="background:#34d399"></i>34d399</span>
+    <span class="d"><i style="background:#38bdf8"></i>38bdf8</span>
+    <span class="d"><i style="background:#a78bfa"></i>a78bfa</span>
+    <span class="d"><i style="background:#e879f9"></i>e879f9</span>
+    <span class="d"><i style="background:#fbbf24"></i>fbbf24</span>
+    <span class="d"><i style="background:#f87171"></i>f87171</span>
+    <span class="d"><i style="background:#22d3ee"></i>22d3ee</span>
+    <span class="d"><i style="background:#a3e635"></i>a3e635</span>
+    <span class="d"><i style="background:#fb923c"></i>fb923c</span>
+    <span class="d"><i style="background:#f472b6"></i>f472b6</span>
+  </div>
+  <div class="warn bad">The branch palette is cool and saturated — Tailwind-family hues that predate the current warm theme and sit apart from it. Colours are assigned by <em>hashing the branch name</em>, so a branch's colour is arbitrary and differs between projects. Several fail 3:1 against <code>--bg</code> at dot size. Open design question.</div>
+
+  <h2>Known gaps</h2>
+  <div class="warn">✅ <strong>Fixed 2026-07-27:</strong> focus ring (global <code>:focus-visible</code>) · <code>prefers-reduced-motion</code> · spacing tokens <code>--sp-*</code> · type tokens <code>--fs-*</code> · motion tokens · <code>--r-pill</code> · a shared <code>.input</code> · duplicate <code>.btn-small</code> retired.</div>
+  <div class="warn bad">Still open: the ~25 spacing and ~26 type <em>literals</em> are not yet migrated onto the new tokens · <code>SkillTreeCanvas.jsx</code> still hardcodes colours · the branch palette above · 7 clickable <code>&lt;div&gt;</code>s unreachable by keyboard · 2 ARIA attributes across 32 components.</div>
+  <p class="note">Full detail and priority order in <strong>AUDIT.md</strong>.</p>
+</div>
+</body>
+</html>

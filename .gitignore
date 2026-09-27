@@ -1,0 +1,9 @@
+node_modules/
+/client/dist/
+data/
+*.log
+.DS_Store
+graphify-out/
+.netlify/
+.env
+.env.*

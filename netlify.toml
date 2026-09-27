@@ -1,0 +1,26 @@
+[build]
+  command = "npm run build"
+  publish = "client/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  VITE_CLOUD = "true"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["pdfjs-dist", "express", "multer", "serverless-http", "google-auth-library"]
+  included_files = ["server/**", "!server/*.test.js", "!data/**", "!data/**/.*", "!data/**/.*/**", "!client/**", "!.env*"]
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "SAMEORIGIN"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

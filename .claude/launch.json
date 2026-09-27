@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "paperquest",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set PORT=3111&& node server/index.js"],
+      "port": 3111
+    }
+  ]
+}
