@@ -24,7 +24,14 @@ that answered (`store.activeModel`).
 `callLLMRaw` is the variant that returns `{text, message}` — callers continuing a
 thread need `message.reasoning_details`; `callLLM` is the text-only wrapper.
 `parseModelJSON(text)` strips fences/prose and parses the model's JSON (never
-`JSON.parse` raw output). `httpError` also lives here.
+`JSON.parse` raw output). Models in JSON mode, Gemini especially, write LaTeX
+with one backslash: `$A^\dagger$` is invalid JSON, and `$\frac{1}{2}$` or
+`$\theta$` would parse as a form feed or tab. `escapeLatexBackslashes` runs
+first: it doubles backslashes that can't be JSON escapes, and reads `\b` `\f`
+(anywhere) or `\n` `\r` `\t` (inside `$…$`, `$$…$$`, `\(…\)`, `\[…\]`) as LaTeX
+when a command from `LATEX_ESCAPE_CLASH` follows. Real newlines/tabs stay, and
+correct JSON passes through unchanged (tests: `server/llm.test.js`).
+`httpError` also lives here.
 **Change here when:** adding a provider *kind* (register metadata in
 `store.PROVIDERS`), changing timeouts/token limits, fixing response parsing.
 Providers/keys are a list of connections — see [storage.md](storage.md).

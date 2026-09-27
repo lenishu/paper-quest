@@ -224,6 +224,75 @@ async function gemini(key, model, messages, json, maxTokens, baseUrl) {
   return { text, message: { role: 'assistant', content: text } };
 }
 
+// LaTeX commands whose first letter JSON reads as an escape (\b \f \n \r \t).
+// Written with one backslash, "$\frac{1}{2}$" parses as a form feed + "rac{1}{2}".
+const LATEX_ESCAPE_CLASH = new Set([
+  'backslash', 'bar', 'because', 'begin', 'beta', 'beth', 'between', 'bf', 'big', 'bigcap', 'bigcirc',
+  'bigcup', 'bigg', 'biggl', 'biggr', 'bigl', 'bigodot', 'bigoplus', 'bigotimes', 'bigr', 'bigsqcup',
+  'bigstar', 'bigtriangledown', 'bigtriangleup', 'biguplus', 'bigvee', 'bigwedge', 'binom', 'blacksquare',
+  'bmod', 'boldsymbol', 'bot', 'bowtie', 'box', 'boxdot', 'boxed', 'boxminus', 'boxplus', 'boxtimes',
+  'bra', 'braket', 'breve', 'bullet',
+  'fbox', 'flat', 'footnotesize', 'forall', 'frac', 'frak', 'frown',
+  'nabla', 'natural', 'ncong', 'ne', 'nearrow', 'neg', 'neq', 'newline', 'nexists', 'ngeq', 'ngtr', 'ni',
+  'nleftarrow', 'nleftrightarrow', 'nleq', 'nless', 'nmid', 'nolimits', 'nonumber', 'norm', 'not', 'notin',
+  'nparallel', 'nprec', 'nrightarrow', 'nsim', 'nsubseteq', 'nsucc', 'nsupseteq', 'nu', 'nvdash', 'nwarrow',
+  'rangle', 'rbrace', 'rbrack', 'rceil', 'restriction', 'rfloor', 'rgroup', 'rho', 'right', 'rightarrow',
+  'rightarrowtail', 'rightharpoondown', 'rightharpoonup', 'rightleftarrows', 'rightleftharpoons',
+  'rightrightarrows', 'rightsquigarrow', 'rightthreetimes', 'risingdotseq', 'rm', 'rmoustache', 'root',
+  'rtimes', 'rVert', 'rvert',
+  'tag', 'tan', 'tanh', 'tau', 'tbinom', 'text', 'textbf', 'textcolor', 'textit', 'textnormal', 'textrm',
+  'textsf', 'textstyle', 'texttt', 'tfrac', 'therefore', 'theta', 'thickapprox', 'thicksim', 'thinspace',
+  'tilde', 'times', 'tiny', 'to', 'top', 'triangle', 'triangledown', 'triangleleft', 'trianglelefteq',
+  'triangleq', 'triangleright', 'trianglerighteq', 'twoheadrightarrow'
+]);
+const LETTERS = /[A-Za-z]+/y;
+
+// Models in JSON mode (Gemini especially) write LaTeX with ONE backslash inside
+// strings: "$A^\dagger$" is invalid JSON and "$\theta$" silently becomes a tab.
+// Double every backslash that can't be a JSON escape, and read \b or \f anywhere,
+// or \n \r \t inside $…$, $$…$$, \(…\) or \[…\] math, as LaTeX when a command
+// name follows. Real newlines and tabs stay; correct JSON passes through unchanged.
+function escapeLatexBackslashes(t) {
+  let out = '';
+  let inString = false;
+  let math = null; // the open math delimiter in the current string
+  let slash = false; // the previous decoded character was a literal backslash
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (!inString) {
+      out += c;
+      if (c === '"') { inString = true; math = null; slash = false; }
+      continue;
+    }
+    if (c === '"') { out += c; inString = false; continue; }
+    if (c !== '\\') {
+      if (slash) {
+        if ((c === '(' || c === '[') && !math) math = c;
+        else if ((c === ')' && math === '(') || (c === ']' && math === '[')) math = null;
+      } else if (c === '$') {
+        const d = t[i + 1] === '$' ? '$$' : '$';
+        if (!math) math = d; else if (math === d) math = null;
+        if (d === '$$') { out += '$'; i++; }
+      }
+      out += c;
+      slash = false;
+      continue;
+    }
+    const n = t[i + 1];
+    if (n === '\\') { out += '\\\\'; i++; slash = true; continue; }
+    if (n === '"' || n === '/') { out += c + n; i++; slash = false; continue; }
+    if (n === 'u' && /^[0-9a-fA-F]{4}$/.test(t.slice(i + 2, i + 6))) { out += t.slice(i, i + 6); i += 5; slash = false; continue; }
+    if (n && 'bfnrt'.includes(n)) {
+      LETTERS.lastIndex = i + 1;
+      const latex = LATEX_ESCAPE_CLASH.has(LETTERS.exec(t)[0]) && (n === 'b' || n === 'f' || math);
+      if (!latex) { out += c + n; i++; slash = false; continue; }
+    }
+    out += '\\\\'; // a literal backslash; the next character is read on its own
+    slash = true;
+  }
+  return out;
+}
+
 // Robust JSON extraction from model output.
 function parseModelJSON(text) {
   let t = String(text).trim();
@@ -231,16 +300,14 @@ function parseModelJSON(text) {
   const a = t.indexOf('{');
   const b = t.lastIndexOf('}');
   if (a >= 0 && b > a) t = t.slice(a, b + 1);
-  try {
-    return JSON.parse(t);
-  } catch {
-    // remove trailing commas and retry
+  const fixed = escapeLatexBackslashes(t);
+  const noTrailingCommas = (s) => s.replace(/,\s*([}\]])/g, '$1');
+  for (const candidate of [fixed, t, noTrailingCommas(fixed), noTrailingCommas(t)]) {
     try {
-      return JSON.parse(t.replace(/,\s*([}\]])/g, '$1'));
-    } catch {
-      throw httpError(502, 'The model returned malformed JSON. Try again (or a different model). Raw start: ' + t.slice(0, 200));
-    }
+      return JSON.parse(candidate);
+    } catch {}
   }
+  throw httpError(502, 'The model returned malformed JSON. Try again (or a different model). Raw start: ' + t.slice(0, 200));
 }
 
 module.exports = { callLLM, callLLMRaw, parseModelJSON, httpError };

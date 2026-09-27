@@ -171,7 +171,7 @@ flowchart TD
     A["User clicks ▶ Start refresher"] --> B{"🟦 lesson cached in<br/>data/…/lessons/&lt;concept&gt;.json?"}
     B -- "Yes" --> R["📖 render instantly — costs tokens once, ever"]
     B -- "No" --> C["🟧 <b>AI call #2 — lessonMessages()</b><br/>inputs: the concept, its paper-usage notes,<br/>the list of concepts you've ALREADY mastered<br/>(lesson builds only on what you know),<br/>project field & memory<br/>output: Markdown lesson + 4 MCQs w/ explanations"]
-    C --> D["🟦 parseModelJSON() — strip fences,<br/>repair trailing commas"]
+    C --> D["🟦 parseModelJSON() — strip fences,<br/>re-escape LaTeX backslashes,<br/>repair trailing commas"]
     D --> E["🟦 cached to disk"] --> R
     R --> F["🟦 quiz graded <b>client-side</b> — no AI"]
     F --> G{"≥ 75%?"}

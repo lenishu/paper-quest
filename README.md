@@ -91,5 +91,5 @@ Both are static HTML files — just open them in a browser.
 - **OpenRouter** — pick any model from openrouter.ai/models as the model name. Tick **Reasoning tokens** to have the model think before it answers; PaperQuest carries that thinking forward through a lesson's Q&A thread, so follow-ups continue where the last answer left off. If a model rejects reasoning or JSON mode, the request is retried without them.
 - **References slow / rate-limited** — add a Semantic Scholar API key in ⚙️ settings to lift the shared free-tier limit. The first lookup for a paper is the slow one (title search); once it lands it is cached, and clicking around the map afterwards is fast.
 - **Reference explorer says it couldn't match the paper** — the lookup goes by title, so rename the paper to its exact published title and hit ↻ Refresh.
-- **Malformed JSON from model** — occasionally a model returns a broken graph; just hit analyze again (the 🔁 button on the paper chip).
+- **Malformed JSON from model** — occasionally a model returns a broken graph; just hit analyze again (the 🔁 button on the paper chip). Math that a model writes with single backslashes (Gemini does this) is repaired automatically, so math-heavy lessons no longer fail this way.
 - **Port in use** — set `PORT=3002 npm start`.
