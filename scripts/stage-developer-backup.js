@@ -5,13 +5,13 @@ const { validateBackup } = require('../server/backup');
 const { seal } = require('../server/cloud');
 const { BACKUP_KEY } = require('../server/auth');
 
-// Vercel + Neon uses DATABASE_URL; Netlify uses its Blobs store.
+// Vercel uses Postgres (including Snowflake Postgres); Netlify uses Blobs.
 function openStore() {
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
+  if (process.env.PAPERQUEST_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL) {
     const { pool, store } = require('../server/pgStore').connect();
     return { store, close: () => pool.end() };
   }
-  if (!process.env.NETLIFY_SITE_ID || !process.env.NETLIFY_AUTH_TOKEN) throw new Error('Set DATABASE_URL (Vercel) or NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN (Netlify) for your own deployment.');
+  if (!process.env.NETLIFY_SITE_ID || !process.env.NETLIFY_AUTH_TOKEN) throw new Error('Set PAPERQUEST_DATABASE_URL (Vercel) or NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN (Netlify) for your own deployment.');
   const { getStore } = require('@netlify/blobs');
   const store = getStore({ name: 'paperquest-private-v1', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN, consistency: 'strong' });
   return { store, close: async () => {} };

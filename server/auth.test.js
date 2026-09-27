@@ -85,6 +85,25 @@ test('sign-in rejects replay, wrong nonce, unverified email, invalid tokens and 
   assert.equal((await client.call('/auth/google/start', 'POST', {}, { origin: 'https://evil.test' })).status, 403);
 });
 
+test('a storage cutover invalidates old account sessions while allowing a fresh Google sign-in', async () => {
+  const originalEpoch = process.env.PAPERQUEST_SESSION_EPOCH;
+  try {
+    delete process.env.PAPERQUEST_SESSION_EPOCH;
+    const oldStore = new MemoryBlobs(), oldBrowser = browser(oldStore);
+    await login(oldBrowser);
+    process.env.PAPERQUEST_SESSION_EPOCH = 'new-storage';
+    const newBrowser = browser(new MemoryBlobs());
+    for (const [key, value] of oldBrowser.cookies) newBrowser.cookies.set(key, value);
+    assert.equal((await (await newBrowser.call('/session')).json()).account, null);
+    assert.equal((await newBrowser.call('/developer/projects')).status, 403);
+    await login(newBrowser);
+    assert.equal((await (await newBrowser.call('/session')).json()).account.email, identity.email);
+  } finally {
+    if (originalEpoch === undefined) delete process.env.PAPERQUEST_SESSION_EPOCH;
+    else process.env.PAPERQUEST_SESSION_EPOCH = originalEpoch;
+  }
+});
+
 test('a different Google account cannot claim an already linked workspace', async () => {
   const blobs = new MemoryBlobs(), owner = browser(blobs), other = browser(blobs);
   await login(owner);

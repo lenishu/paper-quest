@@ -91,7 +91,7 @@ An optional Semantic Scholar key supports reference and citation lookups for res
 
 ## Deploy to Vercel
 
-PaperQuest's Vercel deployment uses a static Vite frontend, a Node.js API function, and a Neon Postgres database. The repository includes the required build and routing configuration in [`vercel.json`](vercel.json).
+PaperQuest's Vercel deployment uses a static Vite frontend, a Node.js API function, and PostgreSQL storage. Snowflake Postgres and Neon are supported. The repository includes the required build and routing configuration in [`vercel.json`](vercel.json).
 
 ### 1. Import the repository
 
@@ -111,7 +111,9 @@ See the [Vercel Vite documentation](https://vercel.com/docs/frameworks/frontend/
 
 ### 2. Connect storage
 
-In the Vercel project, open **Storage** and connect a **Neon Postgres** database through the Marketplace integration. Ensure the integration supplies `DATABASE_URL` to the deployment environment you intend to use.
+For **Snowflake Postgres**, create a Postgres instance in Snowsight, configure network access for your deployment, and create a dedicated database and application login. Add its PostgreSQL connection string to Vercel as the sensitive variable `PAPERQUEST_DATABASE_URL`, using `sslmode=verify-full`. Snowflake Postgres uses the PostgreSQL protocol; a Snowflake SQL warehouse connection is not interchangeable.
+
+Alternatively, connect **Neon Postgres** through Vercel's Storage Marketplace integration, which supplies `DATABASE_URL`. The application selects `PAPERQUEST_DATABASE_URL` first, then `DATABASE_URL`, then `POSTGRES_URL`. This lets you retain an old integration during a migration.
 
 The application creates its `paperquest_blobs` table on first use. Local `data/` files are migrated separately through the export/import workflow below.
 
@@ -123,9 +125,11 @@ Add the following in **Project Settings → Environment Variables**:
 
 | Variable | Purpose | Requirement |
 | --- | --- | --- |
-| `DATABASE_URL` | Postgres connection string supplied by Neon. `POSTGRES_URL` is also accepted. | Required for hosted storage |
+| `PAPERQUEST_DATABASE_URL` | PostgreSQL connection string, including Snowflake Postgres. Overrides `DATABASE_URL` and `POSTGRES_URL`. | Required for hosted storage unless an alternative is set |
+| `DATABASE_URL` / `POSTGRES_URL` | Alternative PostgreSQL connection variables used by hosting integrations. | Optional when the override is set |
 | `GOOGLE_CLIENT_ID` | Your Google OAuth web application's client ID. Overrides the repository's default. | Set for Google sign-in on your deployment |
 | `PAPERQUEST_AUTH_SECRET` | Stable encryption secret consisting of 64 lowercase hexadecimal characters. | Required for Google accounts and judge sharing |
+| `PAPERQUEST_SESSION_EPOCH` | Session version for a replacement account database. Changing it requires users to sign in again. | Set when recovering into a fresh database without prior revocation records |
 | `PAPERQUEST_DEVELOPER_EMAILS` | Comma-separated approved developer Google email addresses. | Optional; enables developer recovery and sharing |
 | `PAPERQUEST_DEVELOPER_GOOGLE_SUBS` | Comma-separated approved Google subject IDs. | Optional alternative developer allowlist |
 | `PAPERQUEST_SHARED_GEMINI_KEYS` | Comma-separated Gemini keys used by the shared connection. | Optional; enables AI access without individual setup |

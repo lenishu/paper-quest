@@ -5,6 +5,8 @@ const { validateBackup, canImport } = require('./backup');
 const AUTH = '__Host-paperquest-account';
 const NONCE = '__Host-paperquest-google';
 const BACKUP_KEY = 'developer/projects-backup-v1';
+// Change only when starting a new account store without the old revocation records.
+const sessionEpoch = () => process.env.PAPERQUEST_SESSION_EPOCH || '';
 // OAuth client IDs are public identifiers; secrets stay in server environment variables.
 const clientId = () => process.env.GOOGLE_CLIENT_ID || require('./auth-config.json').googleClientId;
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -38,7 +40,7 @@ function createAuth(options = {}) {
     if (!configured()) return null;
     try {
       const user = helpers().unseal(readCookie(req, AUTH) || '', 'account-session:' + secret());
-      return user.expires > Date.now() && user.sub ? user : null;
+      return user.expires > Date.now() && user.sub && (user.epoch || '') === sessionEpoch() ? user : null;
     } catch { return null; }
   }
   async function inspect(req, token, blobs) {
@@ -112,7 +114,7 @@ function createAuth(options = {}) {
       token = unseal(account, encryptionKey).token;
       const user = { sub: payload.sub, email: payload.email, name: payload.name || payload.email,
         authoritativeEmail: payload.email.toLowerCase().endsWith('@gmail.com') || Boolean(payload.hd),
-        token, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+        token, epoch: sessionEpoch(), expires: Date.now() + 7 * 24 * 60 * 60 * 1000 };
       return reply({ ok: true }, [cookie(token), makeCookie(AUTH, seal(user, 'account-session:' + secret()), 7 * 86400), makeCookie(NONCE, '', 0)]);
     }
     if (route.startsWith('/api/developer/')) {

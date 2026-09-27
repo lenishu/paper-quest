@@ -1,132 +1,73 @@
-# Vercel hosting (current)
+# Hosting on Vercel
 
-Vercel's free Hobby plan hosts the app, with a free Neon Postgres database for
-storage. The Netlify setup in [hosting.md](hosting.md) still works and describes
-the shared parts: private workspaces, Google accounts, developer recovery and
-local project import.
+PaperQuest runs on Vercel with a Vite frontend, a Node.js API function, and PostgreSQL storage. Snowflake Postgres and Neon both use the existing database adapter. Local development continues to use files in `data/`.
 
-## Current deployment
+## Deployment
 
-- Production: https://paper-quest-lovat.vercel.app
-- Vercel project: `paper-quest`, Hobby plan, connected to `lenishu/paper-quest`.
-- Neon database: `paper-quest-db`, Free plan, Washington DC (`iad1`).
-- `DATABASE_URL` is connected to production and preview; authentication and
-  developer-access variables are configured as production secrets.
-- A private, Git-ignored copy of the new authentication secret is saved in
-  `.env.vercel.auth`. Keep it stable and backed up; do not publish that file.
-- Deployed GitHub commit `de1e7d0` on 2026-09-27. Existing uncommitted local
-  changes were not included in this Git-based deployment.
-- Live verification passed: session configuration, project persistence,
-  workspace isolation, cross-origin rejection, and Markdown/PDF background
-  uploads. Temporary verification projects were removed.
-- A real Google sign-in remains to be verified on the production origin.
-- The production `GOOGLE_CLIENT_ID` override uses the existing `Paper-quest`
-  Google web client ending in `ml5p7u4stha35athmf3f6aqcp5p5v5pb.apps.googleusercontent.com`.
-  Its authorized JavaScript origins include both the Vercel production URL
-  and the existing Netlify URL. The code's default client was not listed in
-  the connected Google project, so this environment override is required.
+1. Import the repository into Vercel with the **Vite** preset and the repository root as the root directory.
+2. Provision PostgreSQL and configure the connection as a sensitive server-side environment variable.
+3. Configure Google sign-in and the environment variables described in the [README](../README.md#deploy-to-vercel).
+4. Deploy after setting environment variables. Changes to variables apply to new deployments.
 
-## How it runs
+`vercel.json` supplies `VITE_CLOUD=true npm run build`, the `client/dist` output directory, API routing, and a 300-second function duration. API requests use `api/index.mjs`; other paths serve the frontend.
 
-- `vercel.json` builds the client with `VITE_CLOUD=true npm run build` (Vite
-  preset, output `client/dist`) and rewrites every `/api/*` request to one Node
-  function, `api/index.mjs`. Other paths fall back to `index.html`.
-- `api/index.mjs` calls the same `server/cloud.js` handler as the Netlify
-  functions. It sets `PAPERQUEST_HOSTED`, the host-neutral switch that replaced
-  the old `NETLIFY` check (4 MB uploads, AI redirects blocked, Docling off,
-  private workspace required).
-- Storage is `server/pgStore.js`: a Postgres table `paperquest_blobs`, created
-  on first use, that implements the Blobs calls `cloud.js` and `auth.js` make
-  (`get`, `getWithMetadata`, `set` with `onlyIfNew` / `onlyIfMatch`). Each
-  write is one atomic statement, and the `etag` column works as
-  compare-and-swap, so concurrent requests keep the same conflict behavior as
-  on Netlify. Rows hold the same AES-256-GCM sealed snapshots.
-- Slow tasks (AI, uploads, reference lookups) run in the same invocation after
-  the 202 response, through `waitUntil` from `@vercel/functions`. Hobby caps an
-  invocation at 300 seconds, so a task that needs longer fails; its job record
-  expires after 15 minutes and can then be retried.
-- `includeFiles` adds PDF.js's `pdf.worker.mjs`, which the file tracer cannot
-  find on its own (the same problem as on Netlify), and `server/auth-config.json`.
-  `excludeFiles` keeps the client build (traced through `express.static`),
-  tests, local `data/` and `.env*` out of the function.
+## Snowflake Postgres
 
-## Setup
+In Snowsight, open **Postgres** and create an instance. A small burstable instance is suitable for initial testing. Compute and storage consume the account's available trial balance or paid credits; monitor usage in Snowflake.
 
-1. In Vercel, import `lenishu/paper-quest`. `vercel.json` supplies the build
-   settings (Vite preset, output `client/dist`).
-2. Storage: Project > Storage > Marketplace > **Neon**, free plan, connected to
-   the project. It adds `DATABASE_URL`; `POSTGRES_URL` also works.
-3. Environment variables (Project > Settings > Environment Variables):
+Configure an instance network policy for the application's outbound connections and an application database login with access limited to PaperQuest. Keep administrative credentials separate from the deployed application. Use a PostgreSQL connection string with TLS certificate verification:
 
-   | Variable | Value |
-   | --- | --- |
-   | `PAPERQUEST_AUTH_SECRET` | 64 lowercase hex characters; mark **Sensitive** and keep a private copy |
-   | `PAPERQUEST_DEVELOPER_EMAILS` | Comma-separated approved Google emails |
-   | `PAPERQUEST_DEVELOPER_GOOGLE_SUBS` | Optional Google subject IDs |
-   | `GOOGLE_CLIENT_ID` | Optional override of `server/auth-config.json` |
-   | `PAPERQUEST_ALLOWED_AI_ORIGINS` | Optional extra trusted AI origins |
-   | `PAPERQUEST_SHARED_GEMINI_KEYS` | Free Google AI Studio keys, comma separated; mark **Sensitive**. Every workspace uses them by default, and requests rotate to the next key when one hits its rate limit. Add or replace keys here to cycle them |
+```text
+PAPERQUEST_DATABASE_URL=postgresql://APP_USER:URL_ENCODED_PASSWORD@HOST:5432/paperquest?sslmode=verify-full
+```
 
-4. Redeploy. Environment changes apply only to new deployments.
-5. Google Auth Platform: add `https://<project>.vercel.app`, and each custom
-   domain, to the web client's **Authorized JavaScript origins**. Preview
-   deployments have their own hostnames and cannot sign in unless added.
+Store the actual value in Vercel's sensitive environment-variable storage. Snowflake Postgres is distinct from a Snowflake SQL warehouse: warehouse credentials and SQL API endpoints cannot be used as PostgreSQL connection strings.
 
-## Verify
+See [Snowflake Postgres setup](https://www.snowflake.com/en/developers/guides/getting-started-with-snowflake-postgres/) and [network configuration](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-network).
 
-- `GET /api/session` returns `cloud: true` and `googleEnabled: true`.
-- Smoke test with a fresh cookie: create a project, upload Markdown and a PDF
-  (each finishes as a background job), reload, delete the project. Check that a
-  second cookie cannot see the project and that a cross-origin request gets 403.
-- Then sign in with Google on the live site.
+## Connection selection
 
-## Limits and data
+The server uses the first configured variable:
 
-- Request bodies are capped at 4.5 MB; the app accepts uploads up to 4 MB.
-- Neon's free storage quota bounds the total size of all workspaces. Check the
-  current quota in Neon's dashboard.
-- Hobby is for personal, non-commercial use.
-- Workspaces from a Netlify site do not move to Vercel. Use Settings > Import
-  local projects. To stage the private developer backup, run
-  `npm run workspace:stage-developer` with `DATABASE_URL` and the deployed
-  `PAPERQUEST_AUTH_SECRET` set in your shell.
+1. `PAPERQUEST_DATABASE_URL`
+2. `DATABASE_URL`
+3. `POSTGRES_URL`
 
-## Account switching, tours and judge access
+The dedicated override allows a provider change while retaining a managed integration's original variables for recovery. A Neon Marketplace connection typically supplies `DATABASE_URL`.
 
-- The account menu opens a dedicated account dialog. Switch Google account revokes
-  the current app session, preserves its saved workspace, and reopens a neutral
-  Google button with automatic account selection disabled.
-- A fresh workspace (no projects) starts a 12-step spotlight tour on its first
-  dashboard visit: dashboard tracking, the New Project button and form, the real
-  Attention Is All You Need paper (embedded from arXiv), its map, the saved
-  refresher and quiz, study tools, a sample career built from real tools, the
-  knowledge graph, and the API key button. No AI provider key is needed. The
-  profile menu restarts it.
-- AI works out of the box when `PAPERQUEST_SHARED_GEMINI_KEYS` is set: settings
-  show a keyless "Shared API · free" connection, the keys stay on the server, and
-  users can still add their own key under 🔑 API key.
-- Developer account > Judge access creates a 30-day, revocable read-only snapshot
-  at `/?judge=1`: a guided showcase that explains each feature next to live data
-  (dashboard tracking, projects of every kind with their maps, saved refreshers
-  and quizzes, cheatsheets and summaries, the knowledge graph, and career paths
-  with job and resume comparisons). Send the link and key to the judge.
-  Refreshing generates a new key and invalidates the previous key. New uploads or
-  maps appear after refreshing. Uploaded documents (only arXiv links), notes,
-  chats, resumes (only match counts), API keys and workspace recovery tokens are
-  excluded.
-- Developer backup imports add missing project folders while retaining existing
-  project folders and newer progress. A staged backup is restored once on the
-  developer's next session. Recovery receipts prevent deleted projects returning.
-- On 2026-09-27, the user's nine original projects (31 papers, 27 saved lessons)
-  were imported through the authenticated production app. Private backups remain
-  outside the repository.
+The application creates `paperquest_blobs` on first use. Each row stores a value and a revision. Conditional writes use atomic PostgreSQL statements to preserve workspace isolation and reject conflicting changes. Large encrypted values are cached within a function instance, but every read checks the database revision before reusing a cached value.
 
-### Full-page Google chooser
+## Migrating existing data
 
-The account dialog also offers an OpenID Connect ID-token-only redirect with
-`prompt=select_account`. Register `https://paper-quest-lovat.vercel.app/` as an
-exact authorized redirect URI. It requests only openid/email/profile, never an
-API access token. The callback removes the fragment immediately, validates the
-browser state, and submits to the existing server verifier and one-use nonce
-challenge. Session cookies remain HttpOnly, Secure and SameSite=Strict; sign-in
-finishes through a same-origin API request after returning to the site.
+For a complete migration, copy all `paperquest_blobs` rows to the destination, preserving keys, values, and revisions. Retain the original `PAPERQUEST_AUTH_SECRET`; it protects account mappings and shared snapshots. Verify destination data before changing the production connection, and retain the source until the migration is confirmed.
+
+If the source database is unavailable, a project backup can restore documents and saved learning content, but it does not contain all cloud account records, judge keys, career data, or later edits. Keep the original database available for subsequent recovery. When starting a replacement account store without its prior session-revocation records, set a new `PAPERQUEST_SESSION_EPOCH` so users must authenticate again.
+
+To stage a validated project backup for the approved developer account, configure the destination connection and the deployed authentication secret in a private environment, then run:
+
+```bash
+node --env-file=.env.migration scripts/stage-developer-backup.js /path/to/paperquest-projects-backup.json
+```
+
+This stores an encrypted backup. The next authenticated developer session restores missing project folders while preserving existing folders and newer progress. Recovery receipts prevent deleted projects from being repeatedly restored.
+
+## Google sign-in
+
+Register the deployment's exact origin and callback in Google Auth Platform:
+
+- Authorized JavaScript origin: `https://your-project.vercel.app`
+- Authorized redirect URI: `https://your-project.vercel.app/`
+
+Register custom domains separately. The full-page account chooser requests OpenID Connect identity only and uses a single-use server challenge. Account sessions use secure, HTTP-only cookies. Changing `PAPERQUEST_SESSION_EPOCH` invalidates account sessions without rotating the encryption secret.
+
+## Verification
+
+- Check `/api/session`, then access a workspace endpoint such as `/api/projects`. A successful guest session alone does not verify storage connectivity.
+- Create a project, upload a document, and reload to confirm persistence.
+- Confirm a separate browser workspace cannot read the first workspace's data.
+- Sign in with Google and confirm developer projects and account switching.
+- Open a saved lesson and the knowledge graph, then verify judge access with a read-only snapshot.
+
+Hosted uploads are limited to 4 MB each and workspaces to 24 MB. AI and upload jobs run after the initial response using Vercel's `waitUntil`. Review Vercel function limits and the database provider's compute, storage, and transfer usage as traffic grows.
+
+When storage is unavailable, the app shows an error and retry controls. Inspect deployment logs and the database console for connection failures or exhausted quotas before retrying writes.

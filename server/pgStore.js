@@ -1,6 +1,6 @@
 // Postgres key-value store with the subset of the Netlify Blobs API that cloud.js
 // and auth.js use: get, getWithMetadata, and set with onlyIfNew / onlyIfMatch.
-// Hosts without Blobs (Vercel + Neon) pass this store to cloud.apiHandler instead.
+// Hosts without Blobs pass this store to cloud.apiHandler instead.
 const TABLE = 'paperquest_blobs';
 
 // `query(text, params)` must resolve to `{ rows }` (node-postgres Pool or PGlite).
@@ -82,9 +82,9 @@ function createPgStore(query) {
   };
 }
 
-// Production connection for Vercel: DATABASE_URL (Neon's integration) or POSTGRES_URL.
-function connect(url = process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-  if (!url) throw Object.assign(new Error('Storage is not configured: set DATABASE_URL for this deployment.'), { status: 503 });
+// A dedicated override allows provider migrations without altering managed integration variables.
+function connect(url = process.env.PAPERQUEST_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL) {
+  if (!url) throw Object.assign(new Error('Storage is not configured: set PAPERQUEST_DATABASE_URL or DATABASE_URL for this deployment.'), { status: 503 });
   const { Pool } = require('pg');
   const pool = new Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
   // Neon closes idle connections when it scales to zero; without a listener the
