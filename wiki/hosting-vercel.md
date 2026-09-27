@@ -5,6 +5,27 @@ storage. The Netlify setup in [hosting.md](hosting.md) still works and describes
 the shared parts: private workspaces, Google accounts, developer recovery and
 local project import.
 
+## Current deployment
+
+- Production: https://paper-quest-lovat.vercel.app
+- Vercel project: `paper-quest`, Hobby plan, connected to `lenishu/paper-quest`.
+- Neon database: `paper-quest-db`, Free plan, Washington DC (`iad1`).
+- `DATABASE_URL` is connected to production and preview; authentication and
+  developer-access variables are configured as production secrets.
+- A private, Git-ignored copy of the new authentication secret is saved in
+  `.env.vercel.auth`. Keep it stable and backed up; do not publish that file.
+- Deployed GitHub commit `de1e7d0` on 2026-09-27. Existing uncommitted local
+  changes were not included in this Git-based deployment.
+- Live verification passed: session configuration, project persistence,
+  workspace isolation, cross-origin rejection, and Markdown/PDF background
+  uploads. Temporary verification projects were removed.
+- A real Google sign-in remains to be verified on the production origin.
+- The production `GOOGLE_CLIENT_ID` override uses the existing `Paper-quest`
+  Google web client ending in `ml5p7u4stha35athmf3f6aqcp5p5v5pb.apps.googleusercontent.com`.
+  Its authorized JavaScript origins include both the Vercel production URL
+  and the existing Netlify URL. The code's default client was not listed in
+  the connected Google project, so this environment override is required.
+
 ## How it runs
 
 - `vercel.json` builds the client with `VITE_CLOUD=true npm run build` (Vite
@@ -68,3 +89,23 @@ local project import.
   local projects. To stage the private developer backup, run
   `npm run workspace:stage-developer` with `DATABASE_URL` and the deployed
   `PAPERQUEST_AUTH_SECRET` set in your shell.
+
+## Account switching, tours and judge access
+
+- The account menu opens a dedicated account dialog. Switch Google account revokes
+  the current app session, preserves its saved workspace, and reopens a neutral
+  Google button with automatic account selection disabled.
+- Fresh workspaces receive a five-stop guided sample: Attention Is All You Need,
+  its prepared map, a saved refresher, a chosen career path, and the combined
+  knowledge graph. No AI provider key is needed. The menu can restart the tour.
+- Developer account > Judge access creates a 30-day, revocable read-only snapshot
+  of project and career graphs at `/?judge=1`. Send the link and key to the judge.
+  Refreshing generates a new key and invalidates the previous key. New uploads or
+  maps appear after refreshing. Uploaded documents, notes, chats, resumes, API
+  keys and workspace recovery tokens are excluded.
+- Developer backup imports add missing project folders while retaining existing
+  project folders and newer progress. A staged backup is restored once on the
+  developer's next session. Recovery receipts prevent deleted projects returning.
+- On 2026-09-27, the user's nine original projects (31 papers, 27 saved lessons)
+  were imported through the authenticated production app. Private backups remain
+  outside the repository.

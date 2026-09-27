@@ -95,6 +95,144 @@ test('a different Google account cannot claim an already linked workspace', asyn
   assert.deepEqual(await (await other.call('/projects')).json(), []);
 });
 
+test('logout revokes a copied account cookie without signing out another device or losing data', async () => {
+  const blobs = new MemoryBlobs(), first = browser(blobs), second = browser(blobs), replay = browser(blobs);
+  await login(first);
+  await first.call('/projects', 'POST', { name: 'Keep after logout' });
+  await login(second);
+  for (const [key, value] of first.cookies) replay.cookies.set(key, value);
+  const oldSession = first.cookies.get('__Host-paperquest-account');
+  assert.equal((await first.call('/auth/logout', 'POST')).status, 200);
+  assert.equal((await (await replay.call('/session')).json()).account, null);
+  assert.equal((await replay.call('/developer/projects')).status, 403);
+  assert.equal((await replay.call('/developer/projects', 'POST')).status, 403);
+  assert.equal((await (await second.call('/session')).json()).account.email, identity.email);
+  await login(first);
+  assert.notEqual(first.cookies.get('__Host-paperquest-account'), oldSession);
+  assert.equal((await (await first.call('/projects')).json())[0].name, 'Keep after logout');
+});
+
+test('account and developer checks fail closed when revocation storage is unavailable', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs);
+  await login(client);
+  const get = blobs.get.bind(blobs);
+  const set = blobs.set.bind(blobs);
+  blobs.get = async (key, options) => {
+    if (key.startsWith('auth/revoked/')) throw new Error('Storage unavailable');
+    return get(key, options);
+  };
+  blobs.set = async (key, data, options) => {
+    if (key.startsWith('auth/revoked/')) throw new Error('Storage unavailable');
+    return set(key, data, options);
+  };
+  assert.equal((await client.call('/session')).status, 500);
+  assert.equal((await client.call('/developer/projects')).status, 500);
+  const response = await client.call('/auth/logout', 'POST');
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.headers.getSetCookie(), []);
+});
+
+test('logout after a recovery-key workspace switch still revokes the original account session', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs), guest = browser(blobs), replay = browser(blobs);
+  await login(client);
+  for (const [key, value] of client.cookies) replay.cookies.set(key, value);
+  await guest.call('/session');
+  const { key } = await (await guest.call('/session/recovery', 'POST')).json();
+  assert.equal((await client.call('/session/restore', 'POST', { key })).status, 200);
+  assert.equal((await client.call('/auth/logout', 'POST')).status, 200);
+  assert.equal((await (await replay.call('/session')).json()).account, null);
+  assert.equal((await replay.call('/developer/projects')).status, 403);
+});
+
+test('concurrent submissions consume a Google sign-in challenge only once', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs);
+  await client.call('/session');
+  const { nonce } = await (await client.call('/auth/google/start', 'POST')).json();
+  const credential = JSON.stringify({ ...identity, nonce });
+  const get = blobs.getWithMetadata.bind(blobs);
+  let reads = 0, release;
+  const bothRead = new Promise(resolve => { release = resolve; });
+  blobs.getWithMetadata = async (key, options) => {
+    const result = await get(key, options);
+    if (key.includes('/auth-challenge/')) {
+      if (++reads === 2) release();
+      await bothRead;
+    }
+    return result;
+  };
+  const results = await Promise.all([
+    client.call('/auth/google', 'POST', { credential }),
+    client.call('/auth/google', 'POST', { credential })
+  ]);
+  assert.deepEqual(results.map(r => r.status).sort(), [200, 401]);
+});
+
+test('a challenge requires its browser cookie, expires, and is invalidated by logout', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs), other = browser(blobs);
+  await client.call('/session');
+  const token = client.cookies.get('__Host-paperquest');
+  other.cookies.set('__Host-paperquest', token);
+  const { nonce } = await (await client.call('/auth/google/start', 'POST')).json();
+  const credential = JSON.stringify({ ...identity, nonce });
+  assert.equal((await other.call('/auth/google', 'POST', { credential })).status, 401);
+  const challengeKey = cloud.namespace(token) + '/auth-challenge/' + crypto.createHash('sha256').update(nonce).digest('hex');
+  const challenge = JSON.parse(await blobs.get(challengeKey));
+  await blobs.set(challengeKey, JSON.stringify({ ...challenge, expires: 1 }));
+  assert.equal((await client.call('/auth/google', 'POST', { credential })).status, 401);
+  const fresh = await (await client.call('/auth/google/start', 'POST')).json();
+  other.cookies.set('__Host-paperquest-google', fresh.nonce);
+  await client.call('/auth/logout', 'POST');
+  assert.equal((await other.call('/auth/google', 'POST', { credential: JSON.stringify({ ...identity, nonce: fresh.nonce }) })).status, 401);
+});
+
+test('separate browsers sharing a workspace can start sign-in without replacing each other’s challenge', async () => {
+  const blobs = new MemoryBlobs(), first = browser(blobs), second = browser(blobs);
+  await first.call('/session');
+  second.cookies.set('__Host-paperquest', first.cookies.get('__Host-paperquest'));
+  const a = await (await first.call('/auth/google/start', 'POST')).json();
+  const b = await (await second.call('/auth/google/start', 'POST')).json();
+  assert.notEqual(a.nonce, b.nonce);
+  assert.equal((await first.call('/auth/google', 'POST', { credential: JSON.stringify({ ...identity, nonce: a.nonce }) })).status, 200);
+  assert.equal((await second.call('/auth/google', 'POST', { credential: JSON.stringify({ ...identity, nonce: b.nonce }) })).status, 200);
+});
+
+test('returning sign-in preserves both workspaces and uses the subject even when email changes', async () => {
+  const blobs = new MemoryBlobs(), first = browser(blobs), returning = browser(blobs);
+  await login(first);
+  await first.call('/projects', 'POST', { name: 'Account project' });
+  await returning.call('/session');
+  await returning.call('/projects', 'POST', { name: 'Unlinked guest project' });
+  const guestKey = returning.cookies.get('__Host-paperquest');
+  const guestPath = cloud.namespace(guestKey) + '/workspace';
+  const before = await blobs.get(guestPath);
+  await login(returning, { ...identity, email: 'updated@example.com' });
+  assert.equal(returning.cookies.get('__Host-paperquest'), first.cookies.get('__Host-paperquest'));
+  assert.equal((await (await returning.call('/projects')).json())[0].name, 'Account project');
+  assert.equal(await blobs.get(guestPath), before);
+  assert.equal((await returning.call('/developer/projects')).status, 403);
+  const guest = browser(blobs);
+  await guest.call('/session');
+  assert.equal((await guest.call('/session/restore', 'POST', { key: guestKey })).status, 200);
+  assert.equal((await (await guest.call('/projects')).json())[0].name, 'Unlinked guest project');
+});
+
+test('sign-in rejects malformed claims and sets secure, bounded cookies', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs);
+  await client.call('/session');
+  const start = await client.call('/auth/google/start', 'POST');
+  const { nonce } = await start.json();
+  for (const patch of [{ sub: 123 }, { email: 123 }, { email_verified: 'true' }, { nonce: undefined }]) {
+    assert.equal((await client.call('/auth/google', 'POST', { credential: JSON.stringify({ ...identity, nonce, ...patch }) })).status, 401);
+  }
+  const signedIn = await client.call('/auth/google', 'POST', { credential: JSON.stringify({ ...identity, nonce }) });
+  assert.equal(signedIn.status, 200);
+  for (const value of [...start.headers.getSetCookie(), ...signedIn.headers.getSetCookie()]) {
+    assert.match(value, /^__Host-/);
+    for (const flag of ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Strict', 'Max-Age=']) assert.ok(value.includes(flag));
+    assert.ok(!value.includes('Domain='));
+  }
+});
+
 test('developer backup requires account authentication, restores saved lessons, and preserves existing work', async () => {
   const blobs = new MemoryBlobs(), owner = browser(blobs), visitor = browser(blobs);
   await blobs.set(BACKUP_KEY, cloud.seal(backup, 'developer-backup:' + process.env.PAPERQUEST_AUTH_SECRET));
@@ -209,4 +347,102 @@ test('production verifier checks signatures, audience, issuer and expiry with Go
     const success = await attempt();
     assert.equal(success.status, 200, await success.clone().text());
   } finally { OAuth2Client.prototype.getFederatedSignonCertsAsync = original; }
+});
+
+test('judge keys share only graphs, isolate the workspace, and enforce rotation, expiry and revocation', async () => {
+  const blobs = new MemoryBlobs(), owner = browser(blobs), judge = browser(blobs), visitor = browser(blobs);
+  await login(owner);
+  const demo = await (await owner.call('/onboarding', 'POST', { action: 'project' })).json();
+  const token = owner.cookies.get('__Host-paperquest'), path = cloud.namespace(token) + '/workspace';
+  const files = cloud.unseal(await blobs.get(path), token);
+  files['settings.json'] = entry({ apiKey: 'provider-secret' });
+  files['projects/' + demo.projectId + '/notes.json'] = entry({ personal: 'private-notes' });
+  const pfile = 'projects/' + demo.projectId + '/project.json';
+  const p = JSON.parse(Buffer.from(files[pfile].data, 'base64'));
+  p.privateField = 'private-project-field'; p.nodes[0].internal = 'private-node-field';
+  files[pfile] = entry(p);
+  files['careers/test/career.json'] = entry({ id: 'test', name: 'ML engineer', skills: p.nodes, resume: 'private-resume' });
+  await blobs.set(path, cloud.seal(files, token));
+  await visitor.call('/session');
+  assert.equal((await visitor.call('/developer/judge-access', 'POST')).status, 403);
+  const created = await owner.call('/developer/judge-access', 'POST');
+  assert.equal(created.status, 200);
+  const { key } = await created.json();
+  assert.match(key, /^PQJ-[a-f0-9]{64}$/);
+  assert.equal((await judge.call('/judge/enter', 'POST', { key }, { origin: 'https://evil.test' })).status, 403);
+  assert.equal((await judge.call('/judge/enter', 'POST', { key: 'wrong' })).status, 401);
+  const opened = await judge.call('/judge/enter', 'POST', { key });
+  assert.equal(opened.status, 200);
+  assert.match(opened.headers.get('set-cookie'), /Secure; HttpOnly; SameSite=Strict/);
+  const shared = await opened.json(), text = JSON.stringify(shared);
+  assert.equal(shared.projects.length, 1); assert.equal(shared.careers.length, 1);
+  assert.ok(shared.projects[0].nodes.length > 5);
+  for (const hidden of [token, 'provider-secret', 'private-notes', 'private-project-field', 'private-node-field', 'private-resume', 'DEMO_PAPER_MD']) assert.ok(!text.includes(hidden), hidden);
+  assert.equal((await judge.call('/projects')).status, 401);
+  await judge.call('/session');
+  assert.deepEqual(await (await judge.call('/projects')).json(), []);
+  assert.equal((await judge.call('/judge/graphs', 'POST', {})).status, 405);
+  assert.equal((await judge.call('/judge/graphs')).status, 200);
+  const replacement = await (await owner.call('/developer/judge-access', 'POST')).json();
+  assert.equal((await judge.call('/judge/graphs')).status, 401);
+  assert.equal((await judge.call('/judge/enter', 'POST', { key })).status, 401);
+  assert.equal((await judge.call('/judge/enter', 'POST', { key: replacement.key })).status, 200);
+  const sharePath = cloud.namespace(token) + '/judge-access', shareSecret = 'judge-sharing:' + process.env.PAPERQUEST_AUTH_SECRET;
+  const share = cloud.unseal(await blobs.get(sharePath), shareSecret);
+  await blobs.set(sharePath, cloud.seal({ ...share, expires: 1 }, shareSecret));
+  assert.equal((await judge.call('/judge/graphs')).status, 401);
+  const fresh = await (await owner.call('/developer/judge-access', 'POST')).json();
+  await judge.call('/judge/enter', 'POST', { key: fresh.key });
+  assert.equal((await owner.call('/developer/judge-access', 'DELETE')).status, 200);
+  assert.equal((await judge.call('/judge/graphs')).status, 401);
+  assert.equal((await (await owner.call('/developer/judge-access')).json()).active, false);
+});
+
+test('guided tour persists, creates one sample map and cached refresher, and builds a connected career without AI', async () => {
+  const blobs = new MemoryBlobs(), client = browser(blobs), other = browser(blobs);
+  await client.call('/session'); await other.call('/session');
+  assert.equal((await (await client.call('/onboarding')).json()).eligible, true);
+  const add = async () => (await client.call('/onboarding', 'POST', { action: 'project' })).json();
+  const sample = await add(); assert.equal((await add()).projectId, sample.projectId);
+  assert.equal((await (await client.call('/projects')).json()).length, 1);
+  const project = await (await client.call('/projects/' + sample.projectId)).json();
+  assert.ok(project.project.nodes.length > 5);
+  const lesson = await client.call('/projects/' + sample.projectId + '/lesson', 'POST', { conceptId: 'linear_algebra' });
+  assert.equal(lesson.status, 200, await lesson.clone().text());
+  assert.equal((await lesson.json()).cached, true);
+  for (const step of [2, 3]) assert.equal((await client.call('/onboarding', 'POST', { action: 'step', step })).status, 200);
+  const career = await (await client.call('/onboarding', 'POST', { action: 'career', name: 'Data Scientist' })).json();
+  const stored = cloud.unseal(await blobs.get(cloud.namespace(client.cookies.get('__Host-paperquest')) + '/workspace'), client.cookies.get('__Host-paperquest'));
+  const skills = JSON.parse(Buffer.from(stored['careers/' + career.careerId + '/career.json'].data, 'base64')).skills;
+  assert.ok(skills.some(n => n.depth > 0));
+  const ids = new Set(skills.map(n => n.id));
+  assert.ok(skills.every(n => n.prereqs.every(id => ids.has(id))));
+  await client.call('/onboarding', 'POST', { action: 'step', step: 5 });
+  assert.equal((await (await client.call('/onboarding')).json()).completed, true);
+  assert.equal((await (await other.call('/onboarding')).json()).step, 0);
+  await client.call('/onboarding', 'POST', { action: 'restart' });
+  assert.equal((await add()).projectId, sample.projectId);
+  const again = await (await client.call('/onboarding', 'POST', { action: 'career', name: 'AI / Machine Learning Engineer' })).json();
+  assert.equal(again.careerId, career.careerId);
+  await client.call('/onboarding', 'POST', { action: 'dismiss' });
+  assert.equal((await (await client.call('/onboarding')).json()).dismissed, true);
+  assert.equal((await client.call('/onboarding', 'POST', { action: 'career', name: 'Unknown' })).status, 400);
+});
+
+test('automatic developer restoration adds missing folders once and preserves newer progress and edits', async () => {
+  const blobs = new MemoryBlobs(), owner = browser(blobs);
+  await login(owner);
+  const token = owner.cookies.get('__Host-paperquest'), key = cloud.namespace(token) + '/workspace';
+  await blobs.set(key, cloud.seal({ 'profile.json': entry({ xp: 700 }), 'mastery.json': entry({ vectors: { score: 100 } }) }, token));
+  await blobs.set(BACKUP_KEY, cloud.seal(backup, 'developer-backup:' + process.env.PAPERQUEST_AUTH_SECRET));
+  assert.equal((await owner.call('/session')).status, 200);
+  let restored = cloud.unseal(await blobs.get(key), token);
+  assert.ok(restored['projects/old/lessons/vectors.json']);
+  assert.equal(JSON.parse(Buffer.from(restored['profile.json'].data, 'base64')).xp, 700);
+  await owner.call('/projects/old', 'PATCH', { name: 'New title' });
+  await owner.call('/session');
+  assert.equal((await (await owner.call('/projects')).json())[0].name, 'New title');
+  await owner.call('/projects/old', 'DELETE');
+  await owner.call('/session');
+  assert.deepEqual(await (await owner.call('/projects')).json(), []);
 });

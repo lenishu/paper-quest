@@ -163,7 +163,7 @@ async function queue(blobs, token, event, dispatch) {
   }
   return json({ jobId: job.id }, 202);
 }
-async function importBackup(req, blobs, token) {
+async function importBackup(req, blobs, token, developer = false) {
   const raw = await req.text();
   if (Buffer.byteLength(raw) > 2 * 1024 * 1024) throw fail(413, 'Backup chunks must be smaller than 2 MB.');
   let body;
@@ -193,6 +193,13 @@ async function importBackup(req, blobs, token) {
       let backup;
       try { backup = JSON.parse(text); } catch { throw fail(400, 'Invalid backup JSON.'); }
       const { files, ...summary } = validateBackup(backup);
+      if (developer) {
+        await require('./auth').restoreMissingProjects(blobs, token, backup);
+        state = { id: state.id, createdAt: state.createdAt, done: true, summary };
+        const written = await blobs.set(key, seal(state, token), options);
+        if (!written.modified) throw fail(409, 'Another import request changed this upload. Please retry.');
+        return json(summary);
+      }
       const workspaceKey = namespace(token) + '/workspace';
       const saved = await blobs.get(workspaceKey, { type: 'text', consistency: 'strong' });
       const current = saved ? unseal(saved, token) : {};
@@ -211,10 +218,12 @@ async function apiHandler(req, blobs, dispatch, accounts = auth) {
   try {
     sameOrigin(req);
     const url = new URL(req.url);
+    const judgeResponse = await require('./sharing').handle(req, blobs);
+    if (judgeResponse) return judgeResponse;
     let token = tokenFrom(req);
     if (url.pathname === '/api/session' && req.method === 'GET') {
       token ||= crypto.randomBytes(32).toString('hex');
-      return json({ cloud: true, workspace: namespace(token).slice(0, 12), maxUploadMB: 4, ...accounts.info(req, token) }, 200, { 'Set-Cookie': cookie(token) });
+      return json({ cloud: true, workspace: namespace(token).slice(0, 12), maxUploadMB: 4, ...await accounts.info(req, token, blobs) }, 200, { 'Set-Cookie': cookie(token) });
     }
     const authResponse = await accounts.handle(req, blobs, token);
     if (authResponse) return authResponse;
@@ -275,4 +284,4 @@ async function backgroundHandler(req, blobs) {
   await blobs.set(key, seal(completed, token), { onlyIfMatch: claimed.etag });
 }
 
-module.exports = { apiHandler, backgroundHandler, cookie, namespace, seal, unseal, execute, saveChanges, snapshot, hydrate, json };
+module.exports = { apiHandler, backgroundHandler, cookie, namespace, seal, unseal, execute, saveChanges, snapshot, hydrate, json, importBackup };

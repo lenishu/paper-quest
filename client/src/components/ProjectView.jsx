@@ -9,7 +9,7 @@ import PaperReader from './PaperReader';
 import { Confetti, Spinner, useToast } from './bits';
 import { useJobs } from '../jobs';
 
-export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept, openReaderSignal, refreshProfile, refreshProjects, openSettings }) {
+export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept, openReaderSignal, refreshProfile, refreshProjects, openSettings, tourRefresher, onTourRefresherClose }) {
   const [data, setData] = useState(null);
   const [sel, setSel] = useState(initialSel || null);
   const [learn, setLearn] = useState(null);
@@ -23,6 +23,9 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (initialSel) { setSel(initialSel); } }, [initialSel]);
   useEffect(() => { if (openReaderSignal) setDrawer(true); }, [openReaderSignal]);
+  useEffect(() => {
+    if (tourRefresher && data?.project.id === id) setLearn(data.project.nodes.find(n => n.id === 'linear_algebra'));
+  }, [tourRefresher, data?.project.id, id]);
 
   const doneCount = completions[id] || 0;
   useEffect(() => {
@@ -119,7 +122,7 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
 
       {learn && (
         <LearnModal projectId={id} node={learn} isMastered={!!mastery[learn.id]}
-          onClose={() => setLearn(null)} onCompleted={(r) => onCompleted(r, learn)} openSettings={openSettings} />
+          onClose={() => { setLearn(null); if (tourRefresher) onTourRefresherClose(); }} onCompleted={(r) => onCompleted(r, learn)} openSettings={openSettings} />
       )}
       {confetti && <Confetti />}
     </div>

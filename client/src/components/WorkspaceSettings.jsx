@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { api } from '../api';
+import React, { useEffect, useState } from 'react';
+import { api, openSession } from '../api';
 import { useToast } from './bits';
 import AccountSettings from './AccountSettings';
 
@@ -10,6 +10,8 @@ export default function WorkspaceSettings() {
   const [backup, setBackup] = useState(null);
   const [importStatus, setImportStatus] = useState('');
   const toast = useToast();
+  const [developer, setDeveloper] = useState(false);
+  useEffect(() => { openSession().then(s => setDeveloper(!!s?.account?.developer)); }, []);
   async function showRecovery() {
     try { setRecovery((await api('/session/recovery', { method: 'POST' })).key); }
     catch (e) { toast(e.message, 'err'); }
@@ -42,7 +44,7 @@ export default function WorkspaceSettings() {
       const bytes = new TextEncoder().encode(backup.text);
       const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((n) => n.toString(16).padStart(2, '0')).join('');
       const id = crypto.randomUUID().replaceAll('-', '');
-      const send = (body) => api('/session/import', { method: 'POST', body: { id, ...body } });
+      const send = (body) => api(developer ? '/developer/import' : '/session/import', { method: 'POST', body: { id, ...body } });
       await send({ action: 'start', size: bytes.length, digest });
       // Exported file contents are base64, so chunk boundaries are plain ASCII.
       for (let offset = 0, index = 0; offset < backup.text.length; offset += 1024 * 1024, index++) {
@@ -56,12 +58,13 @@ export default function WorkspaceSettings() {
   }
   return <><AccountSettings /><section className="cloud-workspace">
     <h3>Your private workspace</h3>
-    <p className="dim small">Papers, progress and API keys are saved in your own encrypted workspace on Netlify. This browser remembers it. Save your recovery key to reopen it on another device or after clearing cookies. Anyone with that key can access your workspace.</p>
+    <p className="dim small">Papers, progress and API keys are saved in your own encrypted workspace. This browser remembers it. Save your recovery key to reopen it on another device or after clearing cookies. Anyone with that key can access your workspace. Use a judge access key to share only graphs.</p>
     <button className="btn-ghost" onClick={showRecovery}>Show recovery key</button>
     {recovery && <label className="field-label">Store this somewhere private<input aria-label="Workspace recovery key" readOnly value={recovery} onFocus={(e) => e.target.select()} /></label>}
     <label className="field-label">Open a saved workspace<input type="password" autoComplete="off" placeholder="Paste your recovery key" value={restore} onChange={(e) => setRestore(e.target.value)} /></label>
     <button className="btn-ghost" disabled={busy || !restore.trim()} onClick={restoreWorkspace}>{busy ? 'Opening…' : 'Open workspace'}</button>
     <h3>Import local projects</h3>
+    {developer && <p className="dim small">Developer recovery adds missing projects and saved lessons. Existing project folders, newer progress and API settings stay in place.</p>}
     <p className="dim small">In your local PaperQuest folder, run <code>npm run workspace:export</code>, then choose the backup here. Import into an empty workspace to bring across papers, lessons, notes and progress. API keys and career documents are excluded.</p>
     <label className="field-label">Projects backup<input type="file" accept=".json" aria-label="Projects backup" disabled={busy} onChange={chooseBackup} /></label>
     {backup && <button className="btn-ghost" disabled={busy} onClick={importProjects}>Import {backup.projects} projects</button>}

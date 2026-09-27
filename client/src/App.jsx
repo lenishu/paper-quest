@@ -9,8 +9,11 @@ import PathsView from './components/PathsView';
 import CareerView from './components/CareerView';
 import ProjectView from './components/ProjectView';
 import SettingsModal from './components/SettingsModal';
+import AccountSettings from './components/AccountSettings';
+import GuidedTour from './components/GuidedTour';
+import JudgeView from './components/JudgeView';
 import { BadgesModal, BookmarksModal, AboutModal, HelpModal } from './components/InfoModals';
-import { ToastCtx, ToastHost } from './components/bits';
+import { ToastCtx, ToastHost, Modal } from './components/bits';
 import { JobsProvider } from './jobs';
 
 class ErrorBoundary extends React.Component {
@@ -23,11 +26,16 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  return new URLSearchParams(window.location.search).has('judge') ? <JudgeView /> : <WorkspaceApp />;
+}
+
+function WorkspaceApp() {
   const [route, setRoute] = useState({ view: 'dashboard' });
   const [dash, setDash] = useState(null);
   const [projects, setProjects] = useState([]);
   const [modal, setModal] = useState(null); // 'settings' | 'badges' | 'bookmarks' | 'about' | 'help'
   const [toasts, setToasts] = useState([]);
+  const [tourRestart, setTourRestart] = useState(0);
 
   const pushToast = useCallback((msg, kind = 'info', ttl = 4500) => { const id = Math.random().toString(36).slice(2); setToasts((t) => [...t, { id, msg, kind }]); setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ttl); }, []);
   const loadDash = useCallback(() => api('/dashboard').then(setDash).catch(() => setDash({ galaxy: { concepts: [], edges: [] }, knowledge: { total: 0, mastered: 0, learning: 0, ready: 0, locked: 0 }, projects: [], heat: [], recent: [], branches: [], profile: {}, stats: {}, streak: 0, badges: [], quests: null, xpWeek: null })), []);
@@ -38,6 +46,7 @@ export default function App() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get('settings')) setModal('settings');
+    if (q.get('account')) setModal('account');
     if (q.get('project')) setRoute({ view: 'project', id: q.get('project'), tab: q.get('tab') || 'overview', sel: q.get('sel') || undefined });
     else if (q.get('view')) setRoute({ view: q.get('view') });
     else if (q.get('new')) { api('/projects', { method: 'POST', body: { name: 'Untitled project' } }).then((p) => { loadProjects(); setRoute({ view: 'project', id: p.id, tab: 'papers' }); }).catch(() => {}); }
@@ -84,6 +93,7 @@ export default function App() {
       <JobsProvider>
         <div className="app">
           <TopBar view={route.view} onNav={nav} project={cur} tab={route.tab} onTab={setTab} dash={dash} onRenameProject={renameProject}
+            onAccount={() => setModal('account')} onTour={() => { setModal(null); setTourRestart(n => n + 1); }}
             onOpenConcept={openConcept} onOpenProject={openProject}
             onSettings={() => setModal('settings')} onShowBadges={() => setModal('badges')}
             onShowBookmarks={() => setModal('bookmarks')} onShowAbout={() => setModal('about')} onShowHelp={() => setModal('help')} />
@@ -94,9 +104,10 @@ export default function App() {
               onSettings={() => setModal('settings')} onShowBadges={() => setModal('badges')}
               onShowBookmarks={() => setModal('bookmarks')} onShowAbout={() => setModal('about')} onShowHelp={() => setModal('help')} />
             <main className={`content ${route.view === 'project' && route.tab === 'map' ? 'content-map' : ''} ${route.view === 'explore' ? 'content-explore' : ''}`}>
-              <ErrorBoundary key={route.view + (route.id || '') + (route.tab || '')}>
+              <ErrorBoundary key={route.view + (route.id || route.careerId || '') + (route.tab || '')}>
                 {route.view === 'project' ? (
                   <ProjectView id={route.id} tab={route.tab || 'overview'} onTab={setTab} initialSel={route.sel}
+                    tourRefresher={route.refresher} onTourRefresherClose={() => setRoute(r => ({ ...r, refresher: false }))}
                     onOpenConcept={openConcept}
                     refreshProfile={loadDash} refreshProjects={refreshAll} openSettings={() => setModal('settings')} />
                 ) : route.view === 'projects' ? (
@@ -104,7 +115,7 @@ export default function App() {
                 ) : route.view === 'explore' ? (
                   <ExploreView dash={dash} onOpenConcept={openConcept} onOpenProject={openProject} onRefresh={loadDash} onTryDemo={tryDemo} />
                 ) : route.view === 'career' ? (
-                  <CareerView />
+                  <CareerView initialId={route.careerId} />
                 ) : route.view === 'paths' ? (
                   <PathsView dash={dash} onOpenConcept={openConcept} />
                 ) : (
@@ -116,6 +127,11 @@ export default function App() {
           </div>
         </div>
         {modal === 'settings' && <SettingsModal onClose={() => setModal(null)} />}
+        {modal === 'account' && <Modal onClose={() => setModal(null)}><div className="modal-head"><h2>Your account</h2><button className="iconbtn" aria-label="Close account" onClick={() => setModal(null)}>✕</button></div><div className="settings-body"><AccountSettings /><button className="btn-ghost" onClick={() => setModal('settings')}>Project recovery & settings</button></div></Modal>}
+        <GuidedTour restart={tourRestart} hidden={!!modal || !!route.refresher}
+          onProject={(id, tab) => setRoute({ view: 'project', id, tab })}
+          onRefresher={id => setRoute({ view: 'project', id, tab: 'map', sel: 'linear_algebra', refresher: true })}
+          onCareer={careerId => setRoute({ view: 'career', careerId })} onExplore={() => nav('explore')} onRefresh={refreshAll} />
         {modal === 'badges' && <BadgesModal badges={dash?.badges} onClose={() => setModal(null)} />}
         {modal === 'bookmarks' && <BookmarksModal onClose={() => setModal(null)} onOpenConcept={openConcept} />}
         {modal === 'about' && <AboutModal onClose={() => setModal(null)} />}

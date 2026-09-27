@@ -9,6 +9,13 @@ export function openSession() {
   return session;
 }
 
+export async function switchAccount() {
+  await api('/auth/logout', { method: 'POST' });
+  window.google?.accounts?.id?.disableAutoSelect();
+  session = null;
+  window.location.assign('/?account=1&switch=1');
+}
+
 export async function api(path, { method = 'GET', body, form } = {}) {
   await openSession();
   if (isCloud && form) {

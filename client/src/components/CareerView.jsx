@@ -169,11 +169,11 @@ function StatBar({ label, value, total, color }) {
   );
 }
 
-export default function CareerView() {
+export default function CareerView({ initialId }) {
   const toast = useToast();
   const { startCareerJob, careersVersion, jobs } = useJobs();
   const [data, setData] = useState(null); // { careers, resume }
-  const [selId, setSelId] = useState(null);
+  const [selId, setSelId] = useState(initialId || null);
   const [detail, setDetail] = useState(null); // full career payload with states/stats
   const [selSkill, setSelSkill] = useState(null);
   const [adding, setAdding] = useState(false);

@@ -1,4 +1,4 @@
-import { isCloud, openSession } from '../api';
+import { isCloud, openSession, switchAccount } from '../api';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Logo from './Logo';
 import { branchColor } from '../graphLayout';
@@ -27,7 +27,7 @@ function useOutsideClose(ref, onClose) {
   }, [ref, onClose]);
 }
 
-export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenConcept, onOpenProject, onRenameProject, onSettings, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
+export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenConcept, onOpenProject, onRenameProject, onSettings, onAccount, onTour, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
   const [q, setQ] = useState('');
   const [account, setAccount] = useState(null);
   useEffect(() => { if (isCloud) openSession().then(s => setAccount(s.account)).catch(() => {}); }, []);
@@ -170,8 +170,8 @@ export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenC
         </div>
 
         <div className="tb-profile" ref={menuRef}>
-          <button className="tb-prof-btn" onClick={() => setMenuOpen((v) => !v)}>
-            <span className="tb-avatar">L</span>
+          <button className="tb-prof-btn" aria-label="Account menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+            <span className="tb-avatar">{account?.name?.[0] || 'L'}</span>
             <span className="tb-prof-text">
               <span className="tb-prof-name">{isCloud ? account?.name || 'Sign in' : 'Lenish'}</span>
               <span className="tb-prof-role">{p.title || 'Novice'} · Level {p.level || 0}</span>
@@ -180,7 +180,10 @@ export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenC
           </button>
           {menuOpen && (
             <div className="tb-menu tb-prof-menu">
-              {isCloud && <button onClick={() => { setMenuOpen(false); onSettings(); }}>{account ? (account.developer ? 'Developer access & account' : 'Your account') : 'Sign up / sign in with Google'}</button>}
+              {isCloud && <button onClick={() => { setMenuOpen(false); onAccount(); }}>{account ? (account.developer ? 'Developer access & account' : 'Your account') : 'Sign up / sign in with Google'}</button>}
+              {isCloud && account && <button onClick={() => switchAccount().catch(e => window.alert(e.message))}>Switch Google account</button>}
+              <button onClick={() => { setMenuOpen(false); onTour(); }}>Start guided tour</button>
+              {isCloud && <a className="judge-menu-link" href="/?judge=1">Enter judge access key</a>}
               <button onClick={() => { setMenuOpen(false); onSettings(); }}>⚙ Settings</button>
               <button onClick={() => { setMenuOpen(false); onShowBadges(); }}>✦ Badges</button>
               <button onClick={() => { setMenuOpen(false); onShowBookmarks(); }}>♡ To review</button>
