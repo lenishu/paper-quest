@@ -1,10 +1,34 @@
+# Dependencies and generated output
 node_modules/
 /client/dist/
-data/
-*.log
-.DS_Store
+coverage/
+.vite/
 graphify-out/
 .netlify/
+
+# Private workspace data, backups, and environment secrets
+/data/
+/backups/
+paperquest-projects-backup*.json
 .env
 .env.*
+!.env.example
+
+# Local logs and temporary files
+/log.md
+*.log
+logs/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Machine-specific tools and editor state
+/.claude/
+.obsidian/
+/wiki/Untitled.base
+/wiki/Untitled.canvas
+.DS_Store
+Thumbs.db
+Desktop.ini
 .vercel/
