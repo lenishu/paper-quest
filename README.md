@@ -4,7 +4,7 @@
 
 PaperQuest organizes documents, identifies the concepts behind them, and maps the prerequisites needed to understand them. Bring together research papers, coursework, personal notes, project briefs, or reference material, then build your knowledge through focused refreshers, quizzes, and career exploration.
 
-[Open the web app](https://paper-quest-lovat.vercel.app/) · [Run locally](#run-locally) · [Deploy to Vercel](#deploy-to-vercel) · [Documentation](wiki/index.md)
+[Open the web app](https://paper-quest-lovat.vercel.app/) · [Technology stack](#technology-stack) · [Run locally](#run-locally) · [Deploy to Vercel](#deploy-to-vercel) · [Documentation](wiki/index.md)
 
 ## Features
 
@@ -17,6 +17,48 @@ PaperQuest organizes documents, identifies the concepts behind them, and maps th
 - **Accounts and sharing:** Reopen hosted workspaces with Google sign-in or a recovery key, and share a read-only showcase through judge access.
 
 The current learning prompts and prepared demo emphasize technical and STEM material. Research papers are one use case within the broader document-based workflow.
+
+## Technology stack
+
+The public deployment runs on **Vercel with Snowflake Postgres**. The same application can run locally with file-based storage.
+
+| Layer | Technologies | Role in PaperQuest |
+| --- | --- | --- |
+| Frontend | React 18, JavaScript, Vite 5, CSS | Component-based interface, development server, and production asset builds |
+| Knowledge visualization | `3d-force-graph`, Three.js, Canvas, SVG | Interactive 3D knowledge graphs, 2D graph views, and prerequisite maps |
+| Backend | Node.js 22.13+, Express 4, `serverless-http` | Document, learning, career, and workspace APIs shared by local and hosted modes |
+| Hosting and background work | Vercel, `@vercel/functions` | Static frontend delivery, API functions, connection-pool lifecycle management, and background work through `waitUntil` |
+| Production database | Snowflake Postgres, PostgreSQL, `pg` | Persistent encrypted workspace snapshots, account records, job state, and judge-sharing snapshots |
+| Authentication | Google Identity Services, OpenID Connect, `google-auth-library` | Google account selection, server-verified ID tokens, and account-linked workspaces |
+| Document processing | PDF.js (`pdfjs-dist`), Multer; optional local Docling | PDF text extraction, Markdown uploads, and optional local document conversion |
+| Learning content | `react-markdown`, `remark-gfm`, `remark-math`, KaTeX | Markdown, tables, mathematical notation, refreshers, and study materials |
+| AI integration | Server-side adapters for Gemini, Anthropic, OpenAI, OpenRouter, Groq, GLM, and compatible endpoints | Concept extraction, learning content, summaries, and career analysis using the selected connection |
+| Research references | Semantic Scholar API | Optional reference and citation lookups for research documents |
+| Data protection | Node.js `crypto`, AES-256-GCM, verified TLS, secure HTTP-only cookies | Encrypted hosted snapshots, authenticated sessions, and secure database connections |
+| Testing | Node.js test runner, PGlite | API and authentication tests, workspace isolation, and PostgreSQL storage behavior |
+
+Dependency versions are recorded in [`package.json`](package.json) and [`package-lock.json`](package-lock.json). Docling is an optional Python tool for local use; the hosted deployment uses PDF.js.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser[React application] -->|Static assets| Web[Vercel frontend]
+    Browser -->|HTTPS API requests| API[Node.js and Express on Vercel]
+    Browser -->|Account selection| Google[Google Identity]
+    API -->|Verify ID tokens| Google
+    API <-->|Verified TLS via pg| Database[(Snowflake Postgres)]
+    API -->|Document analysis and learning requests| AI[Configured AI provider]
+    API -->|waitUntil| Jobs[Background document and AI jobs]
+    Jobs --> Database
+    Jobs --> AI
+```
+
+Uploaded PDF and Markdown documents are converted into text for analysis. The selected AI provider identifies concepts and prerequisite relationships; the server validates and repairs graph structure before the interface presents a learning path. Saved lessons, progress, and career materials become part of the user's workspace.
+
+The hosted adapter compresses and encrypts workspace snapshots before storing them in PostgreSQL. Atomic revision checks protect concurrent saves, while a bounded cache avoids downloading unchanged large snapshots repeatedly. Snowflake's account-specific root certificate verifies the database connection. Background jobs run within Vercel's function duration limit, and the client polls for their results.
+
+Local development uses the same Express routes with files under `data/`. An alternative Netlify adapter remains available in the repository. See the [Vercel hosting guide](wiki/hosting-vercel.md) for deployment details and the [project story](wiki/project-story.md) for the inspiration, development challenges, and roadmap.
 
 ## Use the web app
 
@@ -91,7 +133,7 @@ An optional Semantic Scholar key supports reference and citation lookups for res
 
 ## Deploy to Vercel
 
-PaperQuest's Vercel deployment uses a static Vite frontend, a Node.js API function, and PostgreSQL storage. Snowflake Postgres and Neon are supported. The repository includes the required build and routing configuration in [`vercel.json`](vercel.json).
+PaperQuest's current deployment uses a static Vite frontend and Node.js API functions on Vercel, with Snowflake Postgres for persistent storage. The PostgreSQL adapter also supports Neon. The repository includes the required build and routing configuration in [`vercel.json`](vercel.json).
 
 ### 1. Import the repository
 
@@ -161,7 +203,7 @@ The trailing slash is part of the full-page chooser's redirect URI. Register cus
 
 Deploy after connecting storage and setting the environment variables. Redeploy whenever environment values change so the next deployment receives them.
 
-Verify the installation by opening the app, creating a project, reloading it, and signing in with Google. The `/api/session` endpoint reports `cloud: true`; `googleEnabled: true` confirms that authentication configuration is present. Use the prepared demo to check the map and learning screens without generating new AI content.
+Verify the installation by opening the app, creating a project, uploading a document, reloading it, and signing in with Google. The `/api/session` endpoint reports `cloud: true`; `googleEnabled: true` confirms that authentication configuration is present. Confirm that `/api/projects` also succeeds, since a successful guest session alone does not verify the database connection. Use the prepared demo to check the map and learning screens without generating new AI content.
 
 Further deployment details are in the [Vercel hosting guide](wiki/hosting-vercel.md). The repository also includes a [Netlify deployment configuration](netlify.toml) and [Netlify hosting guide](wiki/hosting.md).
 
@@ -170,7 +212,7 @@ Further deployment details are in the [Vercel hosting guide](wiki/hosting-vercel
 | Mode | Storage |
 | --- | --- |
 | Local | Files under `data/`, including documents, settings, credentials, lessons, careers, and progress |
-| Vercel | Encrypted workspace snapshots in Postgres |
+| Vercel (current deployment) | Encrypted workspace snapshots in Snowflake Postgres, accessed through `pg` with verified TLS |
 | Netlify | Encrypted workspace snapshots in Netlify Blobs |
 
 For a complete local backup, stop the application and copy `data/` to a private backup location. Restoring that folder restores the local workspace, including its settings and career materials.
@@ -241,7 +283,9 @@ Keep pull requests focused and describe the behavior changed and the checks perf
 | Hosted task times out | Retry with a smaller document or use local mode. The Vercel function is configured for a maximum duration of 300 seconds. |
 | 3D rendering unavailable | Use the 2D graph view. The app also provides a fallback when WebGL is unavailable. |
 | Google reports an origin or redirect mismatch | Match the deployed origin and redirect URI exactly in the OAuth client configuration, then allow time for the change to apply. |
-| API reports storage is not configured | Connect Postgres, confirm `DATABASE_URL` is available to the deployment, and redeploy. |
+| API reports storage is not configured | Set `PAPERQUEST_DATABASE_URL` or a supported alternative connection variable in Vercel, then redeploy. |
+| Snowflake certificate verification fails | Set `PAPERQUEST_DATABASE_CA` to the complete account root certificate, confirm the connection hostname, and redeploy. |
+| Workspace storage is temporarily unavailable | Check the database status, network policy, credentials, and provider limits. Retry after restoring connectivity. |
 | Port 3001 is occupied | Set `PORT` before `npm start`. For `npm run dev`, also update the API proxy target in `vite.config.mjs` to match. |
 
 To use another port for the local production build:
