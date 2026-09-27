@@ -10,6 +10,7 @@ import CareerView from './components/CareerView';
 import ProjectView from './components/ProjectView';
 import SettingsModal from './components/SettingsModal';
 import AccountSettings from './components/AccountSettings';
+import GoogleReturn, { hasGoogleReturn } from './components/GoogleReturn';
 import GuidedTour from './components/GuidedTour';
 import JudgeView from './components/JudgeView';
 import { BadgesModal, BookmarksModal, AboutModal, HelpModal } from './components/InfoModals';
@@ -26,6 +27,7 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  if (hasGoogleReturn) return <GoogleReturn />;
   return new URLSearchParams(window.location.search).has('judge') ? <JudgeView /> : <WorkspaceApp />;
 }
 

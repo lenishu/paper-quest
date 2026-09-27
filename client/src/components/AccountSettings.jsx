@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, openSession, switchAccount } from '../api';
 import JudgeAccess from './JudgeAccess';
+import { chooseGoogleAccount } from './GoogleReturn';
 
 let googleScript;
 function loadGoogle() {
@@ -85,7 +86,9 @@ export default function AccountSettings() {
     </> : <>
       <p className="dim small">Choose a Google account below. In Google's account chooser, select another account or “Use another account” to add a new one. Each account keeps its own projects.</p>
       {session.googleEnabled ? <>
-        <div className="google-account-choice"><div ref={googleButton} aria-label="Sign up or sign in with Google" style={busy ? { pointerEvents: 'none', opacity: 0.6 } : undefined} /><span>Choose a Google account<br /><small>Click the Google button to continue</small></span></div>
+        <button className="btn-primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await chooseGoogleAccount(); } catch(e) { setError(e.message); setBusy(false); } }}>Choose a different Google account</button>
+        <p className="dim small">Opens Google's account chooser in this tab. You can select an existing account or add a new one.</p>
+        <div className="google-account-choice"><div ref={googleButton} aria-label="Sign up or sign in with Google" style={busy ? { pointerEvents: 'none', opacity: 0.6 } : undefined} /><span>Quick Google sign-in<br /><small>Uses a popup if supported by your browser</small></span></div>
         {error && <button className="btn-ghost" disabled={busy} onClick={() => setAttempt(n => n + 1)}>Retry Google sign-in</button>}
       </> : <p className="dim small">Google sign-in is awaiting site setup. Recovery keys and backup import are available below.</p>}
     </>}

@@ -109,3 +109,13 @@ local project import.
 - On 2026-09-27, the user's nine original projects (31 papers, 27 saved lessons)
   were imported through the authenticated production app. Private backups remain
   outside the repository.
+
+### Full-page Google chooser
+
+The account dialog also offers an OpenID Connect ID-token-only redirect with
+`prompt=select_account`. Register `https://paper-quest-lovat.vercel.app/` as an
+exact authorized redirect URI. It requests only openid/email/profile, never an
+API access token. The callback removes the fragment immediately, validates the
+browser state, and submits to the existing server verifier and one-use nonce
+challenge. Session cookies remain HttpOnly, Secure and SameSite=Strict; sign-in
+finishes through a same-origin API request after returning to the site.
