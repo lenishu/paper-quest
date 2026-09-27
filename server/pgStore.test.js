@@ -20,6 +20,47 @@ function request(path, key, method = 'GET', body) {
 }
 const api = (blobs, req, dispatch = async () => {}) => cloud.apiHandler(req, blobs, dispatch);
 
+test('unchanged snapshots avoid retransmission and observe writes from other instances', async () => {
+  const { db } = await postgres();
+  const downloads = [];
+  const store = createPgStore(async (sql, params) => {
+    const result = await db.query(sql, params);
+    if (sql.startsWith('SELECT')) downloads.push(result.rows.reduce((sum, row) => sum + Buffer.byteLength(row.data || ''), 0));
+    return result;
+  });
+  const other = createPgStore((sql, params) => db.query(sql, params));
+  try {
+    const first = 'a'.repeat(128 * 1024), second = 'b'.repeat(128 * 1024);
+    await other.set('large', first);
+    assert.equal(await store.get('large'), first);
+    assert.deepEqual(await Promise.all([store.get('large'), store.get('large')]), [first, first]);
+    assert.deepEqual(downloads, [first.length, 0]);
+    const { etag } = await store.getWithMetadata('large');
+    await other.set('large', second);
+    assert.equal(await store.get('large'), second, 'an external update must never return a cached version');
+    assert.equal((await store.set('large', first, { onlyIfMatch: etag })).modified, false);
+    assert.equal(await store.get('large'), second);
+    await store.set('large', first);
+    assert.equal(await store.get('large'), first);
+    assert.equal(downloads.at(-1), 0, 'successful local writes update the revision cache');
+  } finally { await db.close(); }
+});
+
+test('storage failures return a recoverable error without exposing private data', async (t) => {
+  const messages = [];
+  t.mock.method(console, 'error', (...args) => messages.push(args));
+  let offline = true;
+  const store = createPgStore(async () => {
+    if (offline) throw Object.assign(new Error('transfer quota exceeded: private-connection-detail'), { code: 'XX000' });
+    return { rows: [] };
+  });
+  await assert.rejects(store.get('private-workspace-key'), { status: 503, message: 'Workspace storage is temporarily unavailable. Please try again shortly.' });
+  assert.match(JSON.stringify(messages), /quota-exceeded/);
+  assert.doesNotMatch(JSON.stringify(messages), /private-/);
+  offline = false;
+  assert.equal(await store.get('private-workspace-key'), null, 'initialization retries once storage is restored');
+});
+
 test('Postgres store supports create-once, compare-and-swap and upsert writes', async () => {
   const { db, store } = await postgres();
   try {

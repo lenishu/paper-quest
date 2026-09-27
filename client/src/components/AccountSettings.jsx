@@ -24,8 +24,17 @@ export default function AccountSettings() {
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
+  const [loadingSession, setLoadingSession] = useState(true);
   const googleButton = useRef(null);
-  useEffect(() => { openSession().then(setSession).catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSession(true); setError('');
+    openSession().then(value => { if (!cancelled) setSession(value); })
+      .catch(e => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoadingSession(false); });
+    return () => { cancelled = true; };
+  }, [sessionAttempt]);
   useEffect(() => {
     if (!session?.googleEnabled || session.account) return;
     let cancelled = false;
@@ -68,7 +77,7 @@ export default function AccountSettings() {
   }
   return <section className="cloud-workspace">
     <h3>Your account</h3>
-    {!session ? <p role="status">Loading account…</p> : session.account ? <>
+    {!session ? loadingSession ? <p role="status">Loading account…</p> : <button className="btn-primary" onClick={() => setSessionAttempt(n => n + 1)}>Retry loading account</button> : session.account ? <>
       <p>Signed in as <strong>{session.account.name}</strong><br /><span className="dim small">{session.account.email}</span></p>
       <p className="dim small">Sign in with this Google account on another device to reopen your projects.</p>
       <div className="account-actions"><button className="btn-primary" disabled={busy} onClick={async () => { setBusy(true); try { await switchAccount(); } catch (e) { setError(e.message); setBusy(false); } }}>Switch Google account</button>

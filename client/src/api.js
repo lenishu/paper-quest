@@ -3,7 +3,10 @@ let session;
 export function openSession() {
   if (!isCloud) return Promise.resolve(null);
   session ||= fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' }).then(async (res) => {
-    if (!res.ok) throw new Error('Could not open your private workspace. Reload to retry.');
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || 'Could not open your private workspace. Please try again.');
+    }
     return res.json();
   }).catch((error) => { session = null; throw error; });
   return session;

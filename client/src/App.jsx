@@ -35,13 +35,14 @@ export default function App() {
 function WorkspaceApp() {
   const [route, setRoute] = useState({ view: 'dashboard' });
   const [dash, setDash] = useState(null);
+  const [workspaceError, setWorkspaceError] = useState('');
   const [projects, setProjects] = useState([]);
   const [modal, setModal] = useState(null); // 'settings' | 'api' | 'account' | 'new-project' | 'badges' | 'bookmarks' | 'about' | 'help'
   const [toasts, setToasts] = useState([]);
   const [tourRestart, setTourRestart] = useState(0);
 
   const pushToast = useCallback((msg, kind = 'info', ttl = 4500) => { const id = Math.random().toString(36).slice(2); setToasts((t) => [...t, { id, msg, kind }]); setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ttl); }, []);
-  const loadDash = useCallback(() => api('/dashboard').then(setDash).catch(() => setDash({ galaxy: { concepts: [], edges: [] }, knowledge: { total: 0, mastered: 0, learning: 0, ready: 0, locked: 0 }, projects: [], heat: [], recent: [], branches: [], profile: {}, stats: {}, streak: 0, badges: [], quests: null, xpWeek: null })), []);
+  const loadDash = useCallback(() => api('/dashboard').then(value => { setDash(value); setWorkspaceError(''); }).catch(e => setWorkspaceError(e.message)), []);
   const loadProjects = useCallback(() => api('/projects').then(setProjects).catch(() => {}), []);
   useEffect(() => { loadDash(); loadProjects(); }, [loadDash, loadProjects]);
 
@@ -124,7 +125,7 @@ function WorkspaceApp() {
               onShowBookmarks={() => setModal('bookmarks')} onShowAbout={() => setModal('about')} onShowHelp={() => setModal('help')} />
             <main className={`content ${route.view === 'project' && route.tab === 'map' ? 'content-map' : ''} ${route.view === 'explore' ? 'content-explore' : ''}`}>
               <ErrorBoundary key={route.view + (route.id || route.careerId || '') + (route.tab || '')}>
-                {route.view === 'project' ? (
+                {workspaceError ? <section role="alert"><h2>Unable to load your workspace</h2><p>{workspaceError}</p><button className="btn-primary" onClick={refreshAll}>Retry loading workspace</button></section> : route.view === 'project' ? (
                   <ProjectView id={route.id} tab={route.tab || 'overview'} onTab={setTab} initialSel={route.sel}
                     tourRefresher={route.refresher} onTourRefresherClose={() => setRoute(r => ({ ...r, refresher: false }))}
                     onOpenConcept={openConcept}
