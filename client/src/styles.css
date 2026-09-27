@@ -77,7 +77,6 @@
 .judge-access { margin: var(--sp-6) 0; padding: var(--sp-5) 0; border-block: 1px solid var(--line); }
 .judge-key-box { margin-top: var(--sp-4); padding: var(--sp-4); background: var(--surface-2); border-radius: var(--r-md); overflow-wrap: anywhere; }
 .judge-key-box input { font-family: var(--fm); font-size: var(--fs-xs); }
-.judge-menu-link { display: block; padding: var(--sp-2) var(--sp-3); }
 .trail-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .trail-eyebrow { font: 500 var(--fs-label)/1.5 var(--fm); letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
 .trail-top .linkbtn { font-size: var(--fs-xs); white-space: nowrap; }

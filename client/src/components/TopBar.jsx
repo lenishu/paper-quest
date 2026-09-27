@@ -189,7 +189,6 @@ export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenC
               {isCloud && account && <button onClick={() => switchAccount().catch(e => window.alert(e.message))}>Switch Google account</button>}
               <button onClick={() => { setMenuOpen(false); onApiKey(); }}>🔑 API key{dash?.ai?.ready ? <span className="tb-menu-note"> · {dash.ai.label}</span> : null}</button>
               <button onClick={() => { setMenuOpen(false); onTour(); }}>Start guided tour</button>
-              {isCloud && <a className="judge-menu-link" href="/?judge=1">Enter judge access key</a>}
               <button onClick={() => { setMenuOpen(false); onSettings(); }}>⚙ Settings</button>
               <button onClick={() => { setMenuOpen(false); onShowBadges(); }}>✦ Badges</button>
               <button onClick={() => { setMenuOpen(false); onShowBookmarks(); }}>♡ To review</button>
