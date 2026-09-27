@@ -15,7 +15,8 @@ internal `setSel` surviving a tab switch.
 
 ## Deep links (read once on load, then stripped from the URL)
 `/?project=ID&tab=map&sel=CID` (external/legacy entry links), `/?view=projects`,
-`/?new=1` (creates a project), `/?settings=1`.
+`/?new=1` (opens the New Project form), `/?settings=1`, `/?account=1`, `/?judge=1`
+(the judge showcase, `JudgeView.jsx`, rendered instead of the workspace).
 **Change here when:** adding an externally linkable target.
 
 ## Data loading
@@ -33,9 +34,40 @@ passed everywhere) and `GET /api/projects` (→ `projects`). `refreshAll` after
 mutations. `ProjectView` fetches its own `GET /api/projects/:id` and refetches
 when `useJobs().completions[projectId]` bumps (job finished).
 
+## Modals (App.jsx `modal` state)
+`settings` | `api` | `account` | `new-project` | `badges` | `bookmarks` | `about` | `help`.
+- `api` = the **API key menu**: `SettingsModal section="api"` (connections + S2 key,
+  no workspace/recovery block). Opened by the 🔑 button in the TopBar (next to the
+  profile; icon-only under 1060px, hidden under 640px), the profile menu item, and
+  the sidebar button directly above the quote (`data-tour="api-key"`). The labels
+  come from `dash.ai` (`/api/dashboard` → active connection label, never a key).
+  Project/career AI errors open this menu (`openSettings`/`openApiKey`).
+- `new-project` = `NewProjectModal.jsx`: name + kind (paper/class/course/club/
+  hackathon/notes, from `client/src/projectKinds.js`) → `POST /projects` → papers tab.
+  Every "New Project"/"Create Project"/"Upload Paper" entry opens it.
+
+## Guided tour (GuidedTour.jsx)
+Spotlight tour, 12 steps (`STEPS`; numbers must match `server/onboarding.js` TOUR).
+Starts by itself for a workspace with no projects that has not dismissed/completed
+it; the profile menu restarts it. Each step names a screen (`go`) that App's
+`tourGo(where, state)` opens (routes, the `new-project` modal, the refresher via
+`route.refresher`), and a `target` list of `data-tour` names (first visible wins).
+A 200ms poll tracks the target's box; four `.tour-dim` panels dim everything
+else and block clicks, `.tour-ring` outlines it, the card sits beside it (docked on
+phones). `clickAdvances` steps move on when the real control is clicked. The tour
+hides while an unrelated `.modal-backdrop`/`.reader-overlay`/`.paper-drawer` is
+open. Targets: `dash-overview`, `new-project` (+`new-project-side`),
+`new-project-form`, `papers`, `project-map`, `lesson-quiz`, `study-tools`,
+`career-add`, `career-map`, `explore-graph`, `api-key` (+`api-key-top`,
+`profile-menu`). Renaming one of these attributes breaks its step.
+
 ## Component map (live ones)
-- `TopBar.jsx` — top nav, project rename, tab switch, search, modal openers
-- `Sidebar.jsx` — quick actions (upload/new/explore/daily quest/resume)
+- `TopBar.jsx` — top nav, project rename, tab switch, search, 🔑 API key, modal openers
+- `Sidebar.jsx` — quick actions (upload/new/explore/daily quest/resume), API key button above the quote
+- `GuidedTour.jsx`, `NewProjectModal.jsx` — see above; `StudyDocs.jsx` — summary/cheatsheet modal (see learning.md)
+- `JudgeView.jsx` — read-only judge showcase: overview + Dashboard / Projects
+  (map, refresher + locally checked quiz, cheatsheet, summaries) / Knowledge graph /
+  Career paths tabs, fed by `/api/judge/*` (server/sharing.js)
 - `Dashboard.jsx` — home: galaxy panel, quest card (`#quest-card`), stats
 - `ProjectsView.jsx` / `PathsView.jsx` / `ExploreView.jsx` (fullscreen galaxy)
 - `ProjectView.jsx` — per-project shell: Overview / MapView / PapersView /

@@ -14,13 +14,16 @@ read that ONE page, then open only the files it names. Do not scan the repo.
 | Reference explorer — citation map, similar papers, expansion | [client/references.md](client/references.md) | `ReferencesModal.jsx`, `ReferenceGraph.jsx`, `server/references.js`, `/api/s2/*` routes |
 | Storage, data files, settings, mastery, events, undo | [server/storage.md](server/storage.md) | `server/store.js` |
 | SPA navigation, views, deep links, modals, toasts | [client/shell.md](client/shell.md) | `client/src/App.jsx`, `TopBar.jsx`, `Sidebar.jsx` |
+| Guided tour, New Project form, project kinds, API key buttons, judge showcase | [client/shell.md](client/shell.md) | `GuidedTour.jsx`, `NewProjectModal.jsx`, `client/src/projectKinds.js`, `JudgeView.jsx`, `server/onboarding.js`, `server/sharing.js`, `server/demo.js` |
+| Paper summaries and project cheatsheets | [client/learning.md](client/learning.md) | `StudyDocs.jsx`, `Overview.jsx`, `PapersView.jsx`, `jobs.jsx`, summary/cheatsheet routes in `server/index.js` |
+| Shared Gemini key pool (default AI for every account) | [server/ai-pipeline.md](server/ai-pipeline.md), [server/storage.md](server/storage.md) | `server/llm.js` (`sharedGemini`), `server/store.js` (`getSettings`), `SettingsModal.jsx` |
 | Settings UI — connections, reasoning toggle, code-snippet import/export | [client/shell.md](client/shell.md) | `SettingsModal.jsx`, `client/src/snippet.js` |
 | Knowledge graph navigator, skill-tree map, node colors/layout | [client/visualizations.md](client/visualizations.md) | `KnowledgeGraph.jsx`, `SkillTreeCanvas.jsx`, `graphLayout.js` (+ legacy `Galaxy3D/BrainMap/GalaxyPanel.jsx`), `/api/graph` |
 | Lessons, quizzes, lesson Q&A, completing concepts, XP, background jobs | [client/learning.md](client/learning.md) | `LearnModal.jsx`, `LessonChat.jsx`, `NodePanel.jsx`, `jobs.jsx`, `/api/complete`, `/api/projects/:id/lesson/ask` |
 | Visual style, tokens, shared UI bits | [client/design.md](client/design.md) | `client/src/styles.css`, `bits.jsx` + DESIGN_SYSTEM.md |
 | Whole-system understanding / cross-cutting change | [architecture.md](architecture.md) | starts there, then per-page |
 
-| Career Path (careers, resume, JD, skill match) | [career.md](career.md) | `CareerView.jsx`, career routes in `server/index.js`, `server/prompts.js` |
+| Career Path (tool maps, suggestions, resume, JD match) | [career.md](career.md) | `CareerView.jsx`, career routes in `server/index.js`, `server/prompts.js`, `server/careers.test.js` |
 
 ## Do-not-edit list (legacy, zero importers)
 `client/src/components/SkillTree.jsx`, `Home.jsx`, `HomeDashboard.jsx`,

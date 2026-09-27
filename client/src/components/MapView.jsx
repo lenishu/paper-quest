@@ -5,7 +5,7 @@ import NodePanel from './NodePanel';
 export default function MapView({ id, project, states, mastery, sharedWith, selectedId, onSelect, onOpenLesson, onSkip, onOpenSettings, onAddPaper, bookmarks, onToggleBookmark, notes, onSaveNote, lessons }) {
   const selNode = selectedId ? project.nodes.find((n) => n.id === selectedId) : null;
   return (
-    <div className="tree-wrap">
+    <div className="tree-wrap" data-tour="project-map">
       {project.nodes.length > 0 ? (
         <SkillTreeCanvas nodes={project.nodes} states={states} selectedId={selectedId} onSelect={onSelect} />
       ) : (

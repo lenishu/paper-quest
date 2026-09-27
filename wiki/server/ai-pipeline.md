@@ -21,6 +21,13 @@ URL. That is Google's documented auth, and it covers both `AQ.` auth keys and
 older `AIza` standard keys. It also strips a saved `/v1beta` from the root and
 a `models/` prefix from the model. `/api/settings/test` reports the model
 that answered (`store.activeModel`).
+**Shared key pool:** when the active connection is the virtual `shared-gemini`
+one (see storage.md), `callLLMRaw` calls `sharedGemini()`: the keys in
+`PAPERQUEST_SHARED_GEMINI_KEYS`, starting at a rotating cursor, on
+`gemini-2.5-flash` (the model is fixed). A key that answers 429/401/403, or a 400
+about the key, is skipped; other errors surface at once. All keys limited → 429
+"shared free Gemini key is busy". `gemini()` tags its errors with
+`providerStatus` for this.
 `callLLMRaw` is the variant that returns `{text, message}` — callers continuing a
 thread need `message.reasoning_details`; `callLLM` is the text-only wrapper.
 `parseModelJSON(text)` strips fences/prose and parses the model's JSON (never
@@ -54,6 +61,19 @@ Providers/keys are a list of connections — see [storage.md](storage.md).
   `{question (paraphrase), answer (markdown), sources[]}`; prior turns are
   replayed as real user/assistant messages so reasoning carries forward.
   `mode: 'source'` swaps the final user turn for a provenance request.
+- `projectKindNote(kind)` — the `MATERIAL TYPE` system note the analyze route
+  prepends for class / course / club / hackathon / notes projects (`KIND_NOTES`).
+- `paperSummaryMessages(md, name, kind)` → `{title, summary_md}` (TL;DR, Key
+  ideas, How it works, Results, Why it matters; own words, no copying).
+- `cheatsheetMessages({name, kind, field, nodes, lessonText})` → `{cheatsheet_md}`
+  (Core formulas table or Key rules, Key definitions, Build-up path, Remember).
+- Career: `CAREER_RULES`/`CAREER_SCHEMA` ask for the tools and skills job
+  postings require and forbid school-subject nodes; each node carries
+  `concepts` (ids from `knowledgeBlock(knowledge)`, the learner's knowledge
+  graph). `careerSkillsMessages(name, {interest, knowledge})` (empty name = pick
+  the title from the interest), `careerJdMergeMessages(..., {knowledge})` (also
+  returns `jd_skill_ids`), `careerSuggestMessages({knowledge, interest})`,
+  `resumeSkillsMessages`. See [../career.md](../career.md).
 **Change here when:** output quality/shape issues, persona/difficulty tuning.
 Keep the mandatory-fields language (tier/branch/prereqs/usage) — sanitize
 depends on it.

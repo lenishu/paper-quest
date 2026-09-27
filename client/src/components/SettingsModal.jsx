@@ -7,7 +7,8 @@ import { parseSnippet, renderSnippet, SNIPPET_LANGS } from '../snippet';
 // Build a client-side connection id for newly added rows (server preserves it on save).
 const newId = () => 'c_' + Math.random().toString(16).slice(2, 12);
 
-export default function SettingsModal({ onClose }) {
+// section="api" is the API key menu (profile menu / sidebar button): connections only.
+export default function SettingsModal({ onClose, section }) {
   const [s, setS] = useState(null);            // { connections, activeId, s2Key }
   const [providers, setProviders] = useState({});
   const [testingId, setTestingId] = useState(null);
@@ -76,17 +77,18 @@ export default function SettingsModal({ onClose }) {
   return (
     <Modal onClose={onClose}>
       <div className="modal-head">
-        <h2>⚙️ {isCloud ? 'Account & settings' : 'Model & API keys'}</h2>
+        <h2>{section === 'api' ? '🔑 API key' : `⚙️ ${isCloud ? 'Account & settings' : 'Model & API keys'}`}</h2>
         <button className="iconbtn" onClick={onClose}>✕</button>
       </div>
 
       <div className="settings-body">
-        {isCloud && <WorkspaceSettings />}
+        {isCloud && section !== 'api' && <WorkspaceSettings />}
         <label className="field-label">AI connections</label>
         <p className="dim small" style={{ marginTop: 0 }}>
           Add one or more providers (OpenAI, Anthropic, Gemini, OpenRouter, Groq, Zhipu GLM, or any OpenAI-compatible
           endpoint). Keep several — even from the same provider — and pick which one is <b>active</b> for
           analysis &amp; lessons. {isCloud ? 'Keys are encrypted in your private workspace and sent to the provider when you use AI.' : <>Keys live only in <code>data/settings.json</code> on this machine.</>}
+          {s.connections.some((c) => c.shared) && ' Nothing to set up: the shared free Gemini key below works for everyone.'}
         </p>
 
         {s.connections.length === 0 && (
@@ -97,6 +99,39 @@ export default function SettingsModal({ onClose }) {
           const meta = providers[c.provider] || {};
           const active = s.activeId === c.id;
           const tr = testResult[c.id];
+          if (c.shared) {
+            // Held on the server and never sent here; the server cycles the key pool.
+            return (
+              <div key={c.id} className={`conn-card conn-shared ${active ? 'active' : ''}`}>
+                <div className="conn-top">
+                  <label className="conn-active">
+                    <input type="radio" name="active-conn" checked={active} onChange={() => setS((cur) => ({ ...cur, activeId: c.id }))} />
+                    {active ? 'Active' : 'Set active'}
+                  </label>
+                  <span className="shared-badge">Shared API · free</span>
+                </div>
+                <div className="conn-grid">
+                  <label className="conn-field"><span>Provider</span><input value={meta.name || 'Google Gemini'} disabled /></label>
+                  <label className="conn-field"><span>Model</span><input value={meta.defaultModel || ''} disabled /></label>
+                </div>
+                <label className="conn-field">
+                  <span>API key</span>
+                  <input value="Shared API — will cycle it" disabled aria-describedby="shared-key-note" />
+                </label>
+                <p id="shared-key-note" className="dim small conn-shared-note">
+                  PaperQuest's free Gemini key, shared by every account so you never have to hunt for one. It stays on the
+                  server, we cycle it regularly, and requests move to the next key when one hits its rate limit. For heavy
+                  use, add your own key below and set it active.
+                </p>
+                <div className="conn-actions">
+                  <button className="btn small-btn" onClick={() => testConn(c.id)} disabled={testingId === c.id}>
+                    {testingId === c.id ? 'Testing…' : 'Test'}
+                  </button>
+                  {tr && <span className={`conn-test ${tr.ok ? 'ok' : 'bad'}`}>{tr.ok ? '✓ ' : '✗ '}{tr.msg}</span>}
+                </div>
+              </div>
+            );
+          }
           return (
             <div key={c.id} className={`conn-card ${active ? 'active' : ''}`}>
               <div className="conn-top">

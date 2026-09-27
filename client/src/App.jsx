@@ -12,6 +12,7 @@ import SettingsModal from './components/SettingsModal';
 import AccountSettings from './components/AccountSettings';
 import GoogleReturn, { hasGoogleReturn } from './components/GoogleReturn';
 import GuidedTour from './components/GuidedTour';
+import NewProjectModal from './components/NewProjectModal';
 import JudgeView from './components/JudgeView';
 import { BadgesModal, BookmarksModal, AboutModal, HelpModal } from './components/InfoModals';
 import { ToastCtx, ToastHost, Modal } from './components/bits';
@@ -35,7 +36,7 @@ function WorkspaceApp() {
   const [route, setRoute] = useState({ view: 'dashboard' });
   const [dash, setDash] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [modal, setModal] = useState(null); // 'settings' | 'badges' | 'bookmarks' | 'about' | 'help'
+  const [modal, setModal] = useState(null); // 'settings' | 'api' | 'account' | 'new-project' | 'badges' | 'bookmarks' | 'about' | 'help'
   const [toasts, setToasts] = useState([]);
   const [tourRestart, setTourRestart] = useState(0);
 
@@ -51,7 +52,7 @@ function WorkspaceApp() {
     if (q.get('account')) setModal('account');
     if (q.get('project')) setRoute({ view: 'project', id: q.get('project'), tab: q.get('tab') || 'overview', sel: q.get('sel') || undefined });
     else if (q.get('view')) setRoute({ view: q.get('view') });
-    else if (q.get('new')) { api('/projects', { method: 'POST', body: { name: 'Untitled project' } }).then((p) => { loadProjects(); setRoute({ view: 'project', id: p.id, tab: 'papers' }); }).catch(() => {}); }
+    else if (q.get('new')) setModal('new-project');
     if (window.location.search) window.history.replaceState({}, '', window.location.pathname);
     // eslint-disable-next-line
   }, []);
@@ -61,7 +62,9 @@ function WorkspaceApp() {
   const openConcept = useCallback((pid, cid) => setRoute({ view: 'project', id: pid, tab: 'map', sel: cid }), []);
   const setTab = useCallback((tab) => setRoute((r) => ({ ...r, tab, sel: undefined })), []);
 
-  const newProject = useCallback(async () => { try { const p = await api('/projects', { method: 'POST', body: { name: 'Untitled project' } }); await loadProjects(); setRoute({ view: 'project', id: p.id, tab: 'papers' }); } catch (e) { pushToast(e.message, 'err'); } }, [loadProjects, pushToast]);
+  // New Project asks for a name and a type (paper, class, course, club, hackathon, notes).
+  const newProject = useCallback(() => setModal('new-project'), []);
+  const projectCreated = useCallback(async (p) => { setModal(null); await loadProjects(); loadDash(); setRoute({ view: 'project', id: p.id, tab: 'papers' }); }, [loadProjects, loadDash]);
   const tryDemo = useCallback(async () => { try { const p = await api('/projects/demo', { method: 'POST' }); await loadProjects(); await loadDash(); setRoute({ view: 'project', id: p.id, tab: 'overview' }); pushToast('Demo project created — its first lesson needs no API key.', 'info', 6000); } catch (e) { pushToast(e.message, 'err'); } }, [loadProjects, loadDash, pushToast]);
 
   const dailyQuest = useCallback(() => {
@@ -78,6 +81,20 @@ function WorkspaceApp() {
   }, [dash, openConcept, pushToast]);
 
   const refreshAll = useCallback(() => { loadDash(); loadProjects(); }, [loadDash, loadProjects]);
+
+  // The guided tour drives the app: each step names the screen it needs.
+  const tourGo = useCallback((where, s) => {
+    const pid = s && s.projectId, cid = s && s.careerId;
+    setModal((m) => (where === 'new-project' ? 'new-project' : m === 'new-project' ? null : m));
+    if (where === 'dashboard' || where === 'new-project') { setRoute({ view: 'dashboard' }); loadDash(); }
+    else if (where === 'project:papers' && pid) setRoute({ view: 'project', id: pid, tab: 'papers' });
+    else if (where === 'project:map' && pid) setRoute({ view: 'project', id: pid, tab: 'map' });
+    else if (where === 'project:refresher' && pid) setRoute({ view: 'project', id: pid, tab: 'map', sel: 'linear_algebra', refresher: true });
+    else if (where === 'project:overview' && pid) setRoute({ view: 'project', id: pid, tab: 'overview' });
+    else if (where === 'career') setRoute({ view: 'career' });
+    else if (where === 'career:map') setRoute({ view: 'career', careerId: cid });
+    else if (where === 'explore') setRoute({ view: 'explore' });
+  }, [loadDash]);
   const cur = route.view === 'project' ? projects.find((p) => p.id === route.id) || { id: route.id, name: 'Project' } : null;
 
   const renameProject = useCallback(async (name) => {
@@ -95,7 +112,7 @@ function WorkspaceApp() {
       <JobsProvider>
         <div className="app">
           <TopBar view={route.view} onNav={nav} project={cur} tab={route.tab} onTab={setTab} dash={dash} onRenameProject={renameProject}
-            onAccount={() => setModal('account')} onTour={() => { setModal(null); setTourRestart(n => n + 1); }}
+            onAccount={() => setModal('account')} onApiKey={() => setModal('api')} onTour={() => { setModal(null); setTourRestart(n => n + 1); }}
             onOpenConcept={openConcept} onOpenProject={openProject}
             onSettings={() => setModal('settings')} onShowBadges={() => setModal('badges')}
             onShowBookmarks={() => setModal('bookmarks')} onShowAbout={() => setModal('about')} onShowHelp={() => setModal('help')} />
@@ -103,7 +120,7 @@ function WorkspaceApp() {
             <Sidebar dash={dash}
               onUpload={newProject} onNewProject={newProject} onExplore={() => nav('explore')}
               onDailyQuest={dailyQuest} onResume={resumeLearning}
-              onSettings={() => setModal('settings')} onShowBadges={() => setModal('badges')}
+              onSettings={() => setModal('settings')} onApiKey={() => setModal('api')} onShowBadges={() => setModal('badges')}
               onShowBookmarks={() => setModal('bookmarks')} onShowAbout={() => setModal('about')} onShowHelp={() => setModal('help')} />
             <main className={`content ${route.view === 'project' && route.tab === 'map' ? 'content-map' : ''} ${route.view === 'explore' ? 'content-explore' : ''}`}>
               <ErrorBoundary key={route.view + (route.id || route.careerId || '') + (route.tab || '')}>
@@ -111,13 +128,13 @@ function WorkspaceApp() {
                   <ProjectView id={route.id} tab={route.tab || 'overview'} onTab={setTab} initialSel={route.sel}
                     tourRefresher={route.refresher} onTourRefresherClose={() => setRoute(r => ({ ...r, refresher: false }))}
                     onOpenConcept={openConcept}
-                    refreshProfile={loadDash} refreshProjects={refreshAll} openSettings={() => setModal('settings')} />
+                    refreshProfile={loadDash} refreshProjects={refreshAll} openSettings={() => setModal('api')} />
                 ) : route.view === 'projects' ? (
                   <ProjectsView projects={projects} onOpenProject={openProject} onNewProject={newProject} onTryDemo={tryDemo} onReload={refreshAll} />
                 ) : route.view === 'explore' ? (
                   <ExploreView dash={dash} onOpenConcept={openConcept} onOpenProject={openProject} onRefresh={loadDash} onTryDemo={tryDemo} />
                 ) : route.view === 'career' ? (
-                  <CareerView initialId={route.careerId} />
+                  <CareerView initialId={route.careerId} openApiKey={() => setModal('api')} />
                 ) : route.view === 'paths' ? (
                   <PathsView dash={dash} onOpenConcept={openConcept} />
                 ) : (
@@ -128,12 +145,12 @@ function WorkspaceApp() {
             </main>
           </div>
         </div>
-        {modal === 'settings' && <SettingsModal onClose={() => setModal(null)} />}
+        {modal === 'settings' && <SettingsModal onClose={() => { setModal(null); loadDash(); }} />}
+        {modal === 'api' && <SettingsModal section="api" onClose={() => { setModal(null); loadDash(); }} />}
+        {modal === 'new-project' && <NewProjectModal onClose={() => setModal(null)} onCreated={projectCreated} onTryDemo={() => { setModal(null); tryDemo(); }} />}
         {modal === 'account' && <Modal onClose={() => setModal(null)}><div className="modal-head"><h2>Your account</h2><button className="iconbtn" aria-label="Close account" onClick={() => setModal(null)}>✕</button></div><div className="settings-body"><AccountSettings /><button className="btn-ghost" onClick={() => setModal('settings')}>Project recovery & settings</button></div></Modal>}
-        <GuidedTour restart={tourRestart} hidden={!!modal || !!route.refresher}
-          onProject={(id, tab) => setRoute({ view: 'project', id, tab })}
-          onRefresher={id => setRoute({ view: 'project', id, tab: 'map', sel: 'linear_algebra', refresher: true })}
-          onCareer={careerId => setRoute({ view: 'career', careerId })} onExplore={() => nav('explore')} onRefresh={refreshAll} />
+        <GuidedTour restart={tourRestart} hidden={!!modal && modal !== 'new-project'} onGo={tourGo} onRefresh={refreshAll}
+          onDone={() => pushToast('Tour complete. Add your own paper, class or notes whenever you are ready.', 'info', 6000)} />
         {modal === 'badges' && <BadgesModal badges={dash?.badges} onClose={() => setModal(null)} />}
         {modal === 'bookmarks' && <BookmarksModal onClose={() => setModal(null)} onOpenConcept={openConcept} />}
         {modal === 'about' && <AboutModal onClose={() => setModal(null)} />}

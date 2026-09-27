@@ -3,6 +3,7 @@ import KnowledgeGraph from './KnowledgeGraph';
 import { api } from '../api';
 import { branchColor, ACCENT_HUES } from '../graphLayout';
 import { useToast } from './bits';
+import { kindOf } from '../projectKinds';
 
 const HEAT_COLORS = ['#EFEEE9', '#D3EBD9', '#A5D9B1', '#63BE7B', '#1F9D57'];
 const PROJ_GLYPHS = ['◈', '◇', '◉', '◆', '❖'];
@@ -16,7 +17,8 @@ const EV = {
   paper_added: ['📄', 'Uploaded a paper'], paper_removed: ['🗑', 'Removed a paper'], paper_analyzed: ['🧠', 'Mapped a paper'],
   lesson_generated: ['📖', 'Opened lesson'], concept_mastered: ['✅', 'Mastered concept'], concept_skipped: ['⏭', 'Marked as known'],
   concept_viewed: ['👁', 'Reviewed concept'], concept_bookmarked: ['♥', 'Bookmarked'], project_created: ['🌱', 'Created project'],
-  analysis_undone: ['↩', 'Undid analysis'], memory_edited: ['🧠', 'Edited project memory'], lesson_question: ['💬', 'Asked about a lesson']
+  analysis_undone: ['↩', 'Undid analysis'], memory_edited: ['🧠', 'Edited project memory'], lesson_question: ['💬', 'Asked about a lesson'],
+  paper_summarized: ['✦', 'Summarized a paper'], cheatsheet_generated: ['📝', 'Wrote a cheatsheet']
 };
 const branchGlyph = (name) => { const s = (name || '').toLowerCase(); for (const [re, g] of BRANCH_GLYPHS) if (re.test(s)) return g; return (name || '?').trim()[0].toUpperCase(); };
 const ago = (t) => { const s = (Date.now() - t) / 1000; if (s < 3600) return Math.max(1, Math.floor(s / 60)) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; if (s < 172800) return 'Yesterday'; return Math.floor(s / 86400) + 'd ago'; };
@@ -52,7 +54,7 @@ function Legend({ segments, pct }) {
   );
 }
 
-function Heatmap({ heat }) {
+export function Heatmap({ heat }) {
   const cells = useMemo(() => {
     if (!heat || !heat.length) return [];
     const first = new Date(heat[0].date + 'T00:00:00');
@@ -137,14 +139,14 @@ export default function Dashboard({ dash, onOpenConcept, onOpenProject, onNewPro
         )}
       </div>
 
-      <div className="dash-grid">
+      <div className="dash-grid" data-tour="dash-overview">
         {/* Projects */}
         <div className="card">
           <div className="card-head"><span className="eyebrow">Projects</span><button className="card-link" onClick={onViewProjects}>View all →</button></div>
           <div className="proj-list">
             {projects.slice(0, 4).map((pr, i) => (
-              <button key={pr.id} className="proj-row" onClick={() => onOpenProject(pr.id)}>
-                <span className="proj-glyph" style={{ color: PROJ_HUES[i % PROJ_HUES.length], borderColor: PROJ_HUES[i % PROJ_HUES.length] + '4d', background: PROJ_HUES[i % PROJ_HUES.length] + '1a' }}>{PROJ_GLYPHS[i % PROJ_GLYPHS.length]}</span>
+              <button key={pr.id} className="proj-row" title={kindOf(pr.kind).label} onClick={() => onOpenProject(pr.id)}>
+                <span className="proj-glyph" style={{ color: PROJ_HUES[i % PROJ_HUES.length], borderColor: PROJ_HUES[i % PROJ_HUES.length] + '4d', background: PROJ_HUES[i % PROJ_HUES.length] + '1a' }}>{pr.kind && pr.kind !== 'paper' ? kindOf(pr.kind).icon : PROJ_GLYPHS[i % PROJ_GLYPHS.length]}</span>
                 <span className="proj-mid">
                   <span className="proj-name">{pr.name}</span>
                   <span className="proj-bar"><i style={{ width: `${Math.round(pr.progress * 100)}%` }} /></span>
@@ -157,7 +159,7 @@ export default function Dashboard({ dash, onOpenConcept, onOpenProject, onNewPro
             ))}
             {!projects.length && <div className="dim small">No projects yet — create one and drop in a paper.</div>}
           </div>
-          <button className="btn-tint" onClick={onNewProject}>＋ New Project</button>
+          <button className="btn-tint" data-tour="new-project" onClick={onNewProject}>＋ New Project</button>
         </div>
 
         {/* Daily Activity */}

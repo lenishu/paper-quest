@@ -88,6 +88,10 @@ Exactly **one provider is active at a time** (chosen in ⚙ Settings; model name
 2. **Paper analysis** — build or merge the prerequisite concept graph.
 3. **Lesson generation** — write a lesson + 4-question quiz for one concept.
 4. **Lesson Q&A** — answer a follow-up question (or list sources) about an open refresher, replaying the stored thread.
+5. **Summaries and cheatsheets** — a paper's summary, and a one-page cheatsheet of a project's map.
+6. **Career paths** — role suggestions from the knowledge graph, tool maps, resume skills, job-description merges.
+
+On the hosted app the default connection is a **shared Gemini key pool** held on the server (`PAPERQUEST_SHARED_GEMINI_KEYS`); llm.js rotates to the next key when one is rate-limited, and users can add their own key.
 
 Everything else — XP, levels, streaks, quests, badges, graph layout, unlock logic, heatmaps, recommendations — is deterministic local code.
 
@@ -97,15 +101,18 @@ Everything else — XP, levels, streaks, quests, badges, graph layout, unlock lo
 
 ```mermaid
 flowchart TD
-    START(["First visit — http://localhost:3001"]) --> KEY{"API key set?"}
-    KEY -- "No" --> SET["⚙ Settings: pick Gemini / Claude / OpenAI,<br/>paste key, Test connection 🟧"]
-    KEY -- "Demo instead" --> DEMO["🟦 'Try the demo' — prebuilt<br/>Attention Is All You Need project,<br/>first lesson needs no key"]
+    START(["First visit"]) --> TOUR["🟦 Spotlight tour starts by itself<br/>(no projects yet): highlights the real controls"]
+    TOUR --> KEY{"Own API key?"}
+    KEY -- "Not needed" --> SHARED["🟧 Shared free Gemini key pool<br/>(hosted default, rotates on rate limits)"]
+    KEY -- "Add one" --> SET["🔑 API key: pick a provider,<br/>paste key, Test connection 🟧"]
+    TOUR --> DEMO["🟦 Demo — the real Attention Is All You Need<br/>(PDF from arXiv), map, saved lesson,<br/>summary + cheatsheet, no key"]
+    SHARED --> DASH
     SET --> DASH
     DEMO --> DASH
 
     DASH["🏠 Dashboard<br/>3D Knowledge Galaxy · projects · heatmap ·<br/>XP summary · quests · recommended next"]
 
-    DASH -->|"＋ New Project / ⬆ Upload"| UP["Papers tab: drop PDF / MD / TXT"]
+    DASH -->|"＋ New Project: name + type<br/>(paper, class, course, club, hackathon, notes)"| UP["Papers tab: drop PDF / MD / TXT"]
     UP --> PIPE["Ingestion pipeline<br/>(see §4 — runs in background job queue)"]
     PIPE --> MAP
 
@@ -187,28 +194,33 @@ flowchart TD
 
 ## 6. Career Path: resume, job descriptions, skill graph
 
-Global feature, not tied to any project — the user picks career trajectories and
-gets an AI-built skills graph (same node shape as a paper's concept graph) colored
-by what they already know, cross-referenced against global mastery and their resume.
+Global feature, not tied to any project. AI suggests roles from the knowledge
+graph (or the user types an interest or a title), then builds a map of the **tools
+and skills job postings require**, not courses (same node shape as a paper's
+concept graph, plus `importance`, `roleNote` and `concepts` = the knowledge-graph
+concepts each tool uses). It is colored by what the user knows: mastered concepts,
+the resume, tools marked known, and job-description comparisons.
 
 ```mermaid
 flowchart TD
-    A["✧ Career Path view"] --> B["＋ New career trajectory<br/>(name + primary flag)"]
+    A["✧ Career Path view"] --> S["🟧 <b>AI call — careerSuggestMessages()</b><br/>5 roles from the knowledge graph (+ interest)"]
+    S --> B
+    A --> B["＋ New career: suggestion, preset<br/>or typed interest (AI names the role)"]
     B --> C["POST /api/careers/:id/generate"]
-    C --> D["🟧 <b>AI call — careerSkillsMessages()</b><br/>builds 12–22 skills for the field,<br/>level 0 = foundation, + importance<br/>(critical/important/optional) + roleNote"]
+    C --> D["🟧 <b>AI call — careerSkillsMessages()</b><br/>14–22 tools & skills from job postings,<br/>level 0 = foundation tools, + importance,<br/>roleNote and linked knowledge-graph concepts"]
     D --> E["🟦 SAME pipeline as papers:<br/>sanitizeGraph → degenerate retry → repairGraph<br/>(runCareerGraph helper)"]
     E --> F["🗺 CareerGraph renders —<br/>depth-layered boxes, prereq arrows"]
 
     A --> G["Upload resume (PDF/MD)"]
     G --> H["🟦 pdfToMd.js (local, no AI)"]
     H --> I["🟧 <b>AI call — resumeSkillsMessages()</b><br/>extracts skill names from resume text"]
-    I --> J["🟦 resume.json cached — GLOBAL,<br/>one per user, feeds skill matching below"]
+    I --> J["🟦 resume skills saved on the career,<br/>feed matching + critical gaps"]
 
     A --> K["Add job description<br/>(file or pasted text)"]
-    K --> L["🟧 <b>AI call — careerJdMergeMessages()</b><br/>merges JD's skills into the career's<br/>existing graph — keeps ids, bumps importance"]
+    K --> L["🟧 <b>AI call — careerJdMergeMessages()</b><br/>merges JD's skills into the career's<br/>existing map + jd_skill_ids → match % per job"]
     L --> E
 
-    F --> M["🟦 careerStates() computed per request:<br/>known / learning / notreq / tolearn —<br/>matches skill names against mastery.json,<br/>resume.json, and project concepts"]
+    F --> M["🟦 careerStates() computed per request:<br/>known / learning / notreq / tolearn —<br/>resume, known marks, mastered concepts<br/>(a tool is learning once a concept it uses is mastered)"]
     M --> N["🟦 careerStats(): matchPct = known + ½·learning<br/>→ MatchDonut + StatBar"]
 
     style D fill:#E4572E,color:#fff
@@ -238,10 +250,16 @@ as paper analysis and lessons. Details: [wiki/career.md](wiki/career.md).
 | Recommended next concept | 🟦 Local tool | ready node that unlocks the most others (edge counting) |
 | Paper references / citations | 🟩 External API | Semantic Scholar Graph API — a web service, not an LLM |
 | Settings "Test connection" | 🟧 **AI** | 1-line prompt to verify key + model |
+| Shared key pool (hosted default) | 🟦 Local tool | `sharedGemini()` rotates server-held Gemini keys, skipping rate-limited ones |
+| Paper summary | 🟧 **AI** | `paperSummaryMessages` — saved per paper, reopens free |
+| Project cheatsheet | 🟧 **AI** | `cheatsheetMessages` over the map + saved lessons — saved per project |
+| Career role suggestions | 🟧 **AI** | `careerSuggestMessages` over the knowledge graph (+ interest) |
 | Career skills graph (new field) | 🟧 **AI** | `careerSkillsMessages` → same sanitize/repair pipeline as papers |
 | Resume skill extraction | 🟧 **AI** | `resumeSkillsMessages` — reads converted resume Markdown |
-| JD merge into career graph | 🟧 **AI** | `careerJdMergeMessages` — keeps ids, bumps importance |
-| Career skill match (known/learning/tolearn), match % | 🟦 Local tool | `careerStates`/`careerStats` — name matching against mastery.json/resume.json |
+| JD merge into career graph | 🟧 **AI** | `careerJdMergeMessages` — keeps ids, bumps importance, returns the JD's skill ids |
+| Career skill match (known/learning/tolearn), match % | 🟦 Local tool | `careerStates`/`careerStats` — resume, known marks, mastered concepts and linked concepts |
+| Match per job description | 🟦 Local tool | `coverage()` over the JD's skill ids |
+| Guided tour, demo project, sample careers | 🟦 Local tool | `GuidedTour.jsx` + `server/onboarding.js` + `demo.js` — no AI |
 | Search, navigation, project memory, undo, export | 🟦 Local tool | file reads/writes only |
 
 **Rule of thumb:** AI is used exactly where judgment about *content* is needed (what math a paper stands on, how to teach a concept). Every *mechanic* — scoring, unlocking, progress, gamification, rendering — is ordinary local code, so it's fast, free, and reproducible.

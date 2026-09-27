@@ -142,7 +142,7 @@ function resultResponse(result) {
 }
 function slow(event) {
   const p = event.path;
-  return (event.httpMethod === 'POST' && (/\/(analyze|lesson|ask|generate|resume|jd|papers)$/.test(p) || p === '/api/settings/test')) ||
+  return (event.httpMethod === 'POST' && (/\/(analyze|lesson|ask|generate|resume|jd|papers|summary|cheatsheet|suggest)$/.test(p) || p === '/api/settings/test')) ||
     (event.httpMethod === 'GET' && (/\/references$/.test(p) || p.startsWith('/api/s2/')));
 }
 async function queue(blobs, token, event, dispatch) {

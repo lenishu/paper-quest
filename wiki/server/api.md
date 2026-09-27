@@ -17,16 +17,26 @@ registry for the UI — see [storage.md](storage.md)); `POST /settings/test`
 (one-token LLM ping; optional `{connectionId}` tests a specific connection
 before activating it, else the active one).
 
-**Projects** — `GET|POST /projects`; `POST /projects/demo` (seeds from
-`demo.js`, no API key needed); `GET|PATCH|DELETE /projects/:id`.
+**Projects** — `GET|POST /projects` (`{name, kind}`, kind = paper | class | course |
+club | hackathon | notes, `store.projectKind`); `POST /projects/demo`
+(`createDemoProject()` in `demo.js`: the real Attention Is All You Need paper
+embedded from arXiv, map, saved refresher, summary, cheatsheet; no API key);
+`GET|PATCH|DELETE /projects/:id` (PATCH takes `name` and/or `kind`).
 `GET /projects/:id` returns project + computed `states` (via
-`computeStates`) + mastery + bookmarks + `notes` (per-node user notes map) —
-the SPA's main project fetch.
+`computeStates`) + mastery + bookmarks + `notes` (per-node user notes map) +
+`lessons` + `cheatsheetAt` — the SPA's main project fetch.
+
+**Onboarding** (`server/onboarding.js`) — `GET|POST /onboarding`: tour state
+(`step`, `dismissed`, `completed`, `projectId`, `careerId`, `total`, `eligible` =
+no projects); actions `step`, `project` (demo, idempotent), `career` (tool map
+from `DEMO_CAREERS`, no AI), `dismiss`, `restart`.
 
 **Papers** — `POST /projects/:id/papers` (multer upload, ext+size validated →
 see [ingest.md](ingest.md)); `POST …/papers/:paperId/analyze` (the graph
 pipeline → see [ai-pipeline.md](ai-pipeline.md));
-`GET …/markdown`; `GET …/pdf` (raw file for PaperReader);
+`GET …/markdown`; `GET …/pdf` (raw file for PaperReader; papers with an arXiv
+`pdfUrl` redirect there); `GET|POST …/papers/:paperId/summary` (saved AI summary;
+POST writes one, `regenerate` replaces it; `paperSummaryMessages`);
 `PUT …/notes`; `DELETE` paper; `GET …/references` (Semantic Scholar, cached in
 `paper.refsCache`, `?refresh` bypasses).
 
@@ -38,6 +48,8 @@ concepts already have one as `lessons: { conceptId: savedAtMs }`
 (`store.listLessons`, stat-only), which is what lets the UI open a saved lesson
 without going near the model;
 `POST /complete` (marks mastery globally, awards XP via `xpForNode`).
+`GET|POST /projects/:id/cheatsheet` — saved one-page cheatsheet (`cheatsheetMessages`
+over the map + up to 8 saved lesson excerpts; 400 until the project is mapped).
 
 **Lesson Q&A** — `POST /projects/:id/lesson/ask` `{conceptId, question, mode}`
 where mode is `ask` | `source`; replays the stored thread to the model
@@ -59,7 +71,8 @@ snapshot); `GET …/export.txt`.
 **Global reads** — `GET /profile`, `GET /bookmarks` (+ per-project
 `POST …/bookmarks/toggle`), `GET /overview`, `GET /brain` (cross-project
 concept graph, legacy galaxy), `GET /dashboard` (the SPA's big aggregate:
-galaxy, knowledge counts, heat, recent, branches, quests, streak, badges),
+galaxy, knowledge counts, heat, recent, branches, quests, streak, badges, and
+`ai` = the active connection's label for the API key buttons, never a key),
 `GET /graph?scope=all|concepts|careers` (the UNIFIED knowledge graph powering
 the Constellation Navigator — every concept + every career skill merged by
 canonical id; nodes {kind,branch,tier,core,state,projects[],careers[],degree},
@@ -68,7 +81,9 @@ edges prerequisite_of. See [../client/visualizations.md](../client/visualization
 **Quests** — `GET /quests`, `POST /quest/claim`; state built by
 `computeQuestState()` with `QUEST_XP` / `QUEST_GOALS`, day-keyed by `localDayKey`.
 
-**Careers** — global career-path feature: `GET|POST /careers`, `GET|PATCH|DELETE /careers/:id`, `POST /careers/:id/generate`, `POST /careers/resume`, `POST /careers/:id/jd`. See [../career.md](../career.md).
+**Careers** — global career-path feature: `GET|POST /careers` (`{name}` or `{interest}`), `POST /careers/suggest`, `GET|PATCH|DELETE /careers/:id` (PATCH `known: {id, value}`), `POST /careers/:id/generate`, `POST /careers/:id/resume`, `POST /careers/:id/jd`. See [../career.md](../career.md).
+In hosted mode `cloud.js` `slow()` queues every AI route (analyze, lesson, ask,
+generate, resume, jd, papers, summary, cheatsheet, suggest, settings/test) as a job.
 
 ## Local helpers worth knowing
 `masteredIdSet()` (global mastery as a Set), `projectSummary()` (list-view

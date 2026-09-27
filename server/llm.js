@@ -40,6 +40,7 @@ async function readError(res) {
 // continuing a thread can hand `reasoning_details` back unmodified (OpenRouter).
 async function callLLMRaw(settings, messages, { json = true, maxTokens = 8000 } = {}) {
   const conn = store.activeConnection(settings);
+  if (conn && conn.shared) return sharedGemini(messages, json, maxTokens);
   if (!conn || !(conn.key || '').trim()) {
     throw httpError(400, 'No active API connection with a key. Open Settings (gear icon), add a key and mark it active.');
   }
@@ -62,6 +63,30 @@ async function callLLMRaw(settings, messages, { json = true, maxTokens = 8000 } 
 async function callLLM(settings, messages, opts) {
   const { text } = await callLLMRaw(settings, messages, opts);
   return text;
+}
+
+// The server's shared free Gemini keys. Each call starts at the next key in the pool
+// and moves on when a key is rate-limited, out of quota or rejected; any other error
+// (bad request, blocked prompt) would fail on every key, so it surfaces at once.
+let sharedCursor = Math.floor(Math.random() * 1024);
+const keyProblem = (e) => [401, 403, 429].includes(e.providerStatus) || (e.providerStatus === 400 && /api[ _]?key/i.test(e.message));
+async function sharedGemini(messages, json, maxTokens) {
+  const keys = store.sharedGeminiKeys();
+  if (!keys.length) throw httpError(400, 'The shared Gemini key is not set up on this server. Open API key and add your own key.');
+  const start = sharedCursor++ % keys.length;
+  let last;
+  for (let i = 0; i < keys.length; i++) {
+    try {
+      return await gemini(keys[(start + i) % keys.length], store.PROVIDERS.gemini.defaultModel, messages, json, maxTokens);
+    } catch (e) {
+      if (!keyProblem(e)) throw e;
+      last = e;
+    }
+  }
+  const busy = last && last.providerStatus === 429;
+  throw httpError(busy ? 429 : 503, busy
+    ? 'The shared free Gemini key is busy (rate limit). Wait a minute and try again, or add your own key under API key.'
+    : 'The shared Gemini key is unavailable right now. Add your own key under API key, or try again later.');
 }
 
 function httpError(status, message) {
@@ -213,7 +238,11 @@ async function gemini(key, model, messages, json, maxTokens, baseUrl) {
     })
   });
 
-  if (!res.ok) throw httpError(502, `Gemini error — ${await readError(res)}`);
+  if (!res.ok) {
+    const e = httpError(502, `Gemini error — ${await readError(res)}`);
+    e.providerStatus = res.status;
+    throw e;
+  }
   const data = await res.json();
   const cand = data.candidates?.[0];
   const text = (cand?.content?.parts || []).map((p) => p.text || '').join('');

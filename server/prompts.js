@@ -194,66 +194,83 @@ Return STRICT JSON only:
 }
 
 // ---------------- career path ----------------
+// A career map lists the TOOLS and SKILLS job postings ask for (Python, PyTorch,
+// Docker, SQL, A/B testing…), never school courses. Each tool links back to the
+// learner's knowledge-graph concepts it puts to work ("concepts").
 
 const CAREER_SCHEMA = `Return STRICT JSON only (no prose outside JSON), exactly this shape:
 {
-  "career_title": "cleaned-up name of the career/role",
+  "career_title": "the standard job title for this role",
   "field": "short field label, e.g. machine learning engineering",
   "nodes": [
     {
       "id": "snake_case_canonical_id",
-      "name": "Human-Readable Skill Name",
+      "name": "Tool or Skill Name",
       "level": 0,
       "core": false,
       "tier": "novice | intermediate | advanced",
-      "branch": "skill category, e.g. programming, machine learning, math & statistics, data engineering, infrastructure & mlops, software engineering, soft skills",
+      "branch": "category, e.g. languages & tools, ML frameworks, data, MLOps & cloud, software engineering, analysis, domain skills",
       "importance": "critical | important | optional",
-      "blurb": "1-2 plain sentences: what this skill is and what it lets you do.",
-      "used_in_role": "1-2 specific sentences: how this skill is actually used day-to-day in this role.",
+      "blurb": "1-2 plain sentences: what this tool or skill is and what it lets you do.",
+      "used_in_role": "1-2 specific sentences: how people in this role use it day to day.",
+      "concepts": ["knowledge_graph_concept_id"],
       "prereqs": ["id_of_prerequisite_skill"]
     }
   ]
 }
 
-EVERY node object MUST include ALL of these keys, non-empty (never omit a key):
-- "branch" and "importance": always required.
+EVERY node object MUST include ALL of these keys (never omit a key):
+- "branch", "importance" and "used_in_role": always required, non-empty.
 - "tier": required on learnable nodes — one of "novice", "intermediate", "advanced".
 - "prereqs": required on EVERY learnable node — a non-empty array of 1-4 ids that exist in this same "nodes" list. Foundation nodes (level 0) use "prereqs": [].
-- "used_in_role": required on every node.`;
+- "concepts": always present; [] when no knowledge-graph concept applies.`;
 
-const CAREER_RULES = `How to think about the skills graph:
-Identify the skills someone must have to work in this role — technical tools, methods, theory, and the small number of soft skills that genuinely gate the job. Arrange them as a prerequisite network: edges express how a skill builds on simpler skills (e.g. deep learning builds on machine-learning fundamentals and linear algebra; model deployment builds on programming and cloud basics).
+const CAREER_RULES = `What belongs in the map:
+List the concrete TOOLS and SKILLS that most job postings for this role ask for, as they appear under "Requirements" and "Nice to have": programming languages, frameworks and libraries, platforms and cloud services, databases and data tools, and named practices (e.g. "Python", "PyTorch", "Docker", "SQL", "AWS SageMaker", "A/B testing", "CI/CD", "REST APIs"). Group tools that postings list together into one node (e.g. "NumPy & pandas", "Experiment tracking (MLflow, W&B)").
+NOT courses or school subjects: never make nodes like "Linear Algebra", "Calculus", "Statistics", "Intro to Machine Learning" or "Data Structures". Theory goes in "concepts", not in nodes.
+Arrange the tools as a prerequisite network: an edge means "learn this first" (PyTorch builds on NumPy & pandas; Kubernetes builds on Docker; model serving builds on Python and Docker).
 
 Rules:
-- "level": 0 marks 2-4 FOUNDATION skills the graph grows from (e.g. programming basics, high-school math). Everything else uses "level": 1.
-- Add 14-22 learnable (level 1) skills covering the realistic core of the role — not an exhaustive encyclopedia.
-- Mark 1-3 nodes "core": true — the defining skills of this role. They sit at the top and must list prereqs.
-- CRITICAL — build a real hierarchy, not a flat list: every learnable skill MUST list 1-4 "prereqs" by id; the graph must be a connected DAG several layers deep.
-- "importance": "critical" = you will not get hired without it; "important" = expected of a solid candidate; "optional" = nice-to-have or specialization.
-- "tier" is difficulty for a strong STEM student: "novice" = absorbable in days, "intermediate" = solid undergraduate depth, "advanced" = specialized/graduate machinery.
-- "id" must be a canonical snake_case name for the skill (e.g. "linear_algebra", "model_deployment", "sql") so the same skill matches across careers and papers — this exact naming is used to detect what the user already knows.
-- Each node is one learnable skill (one course-module of effort), not an entire discipline.`;
+- "level": 0 marks 2-4 FOUNDATION tools everything grows from (e.g. Python, Git, SQL, Linux). Everything else uses "level": 1.
+- Add 14-22 learnable (level 1) tools and skills that MOST postings for this role require. No encyclopedia.
+- Mark 1-3 nodes "core": true: the role-defining capabilities (e.g. "Deploy & monitor models" for an ML engineer). They sit at the top and must list prereqs.
+- CRITICAL: build a real hierarchy, not a flat list. Every learnable node MUST list 1-4 "prereqs" by id, and the graph must be a connected DAG several layers deep.
+- "importance": "critical" = in most postings for this role; "important" = common; "optional" = nice to have or a specialization.
+- "tier" is difficulty for a strong STEM student: "novice" = usable within days, "intermediate" = weeks of practice, "advanced" = months or real project experience.
+- "id" must be the canonical snake_case name of the tool or skill (e.g. "python", "pytorch", "docker", "sql", "kubernetes") so it matches across careers, resumes and job descriptions.
+- "concepts": ids from the learner's KNOWLEDGE GRAPH (listed below, when present) that this tool puts to work, e.g. PyTorch uses ["backpropagation", "gradient_descent"]. Use only ids from that list.`;
 
-function careerSkillsMessages(careerName) {
+// The learner's knowledge graph (concepts from their projects), for prompts.
+function knowledgeBlock(knowledge) {
+  const list = (knowledge || []).slice(0, 150);
+  if (!list.length) return 'THE LEARNER\'S KNOWLEDGE GRAPH: empty so far (use "concepts": [] everywhere).';
+  return 'THE LEARNER\'S KNOWLEDGE GRAPH (concepts studied in PaperQuest: id — name — state):\n' +
+    list.map((k) => `- ${k.id} — ${k.name} — ${k.state || 'studying'}`).join('\n');
+}
+
+function careerSkillsMessages(careerName, { interest = '', knowledge = [] } = {}) {
   return [
     {
       role: 'system',
-      content: `You are a veteran hiring manager and curriculum designer. You map the prerequisite skill graphs behind technical careers ("what must I learn, in what order, to do this job?"). You respond with strict JSON.`
+      content: 'You are a veteran technical hiring manager. You know exactly which tools and skills job postings for each role require, and in what order people learn them. You respond with strict JSON.'
     },
     {
       role: 'user',
-      content: `TASK: Build the prerequisite skills graph for the career below — the important skills required in this field, from foundations up to the role's defining skills.
+      content: `TASK: Build the career map for the role below: the tools and skills most job postings for it require, from foundation tools up to the role's defining capabilities.
 
-CAREER: "${careerName}"
+${careerName ? `CAREER: "${careerName}"` : 'CAREER: not chosen yet. Pick the one standard job title that best fits the learner\'s interest and knowledge graph, return it as "career_title", and map that role.'}
+${interest ? `THE LEARNER'S INTEREST (tailor specialisations and optional nodes to it): "${interest}"` : ''}
 
 ${CAREER_RULES}
+
+${knowledgeBlock(knowledge)}
 
 ${CAREER_SCHEMA}`
     }
   ];
 }
 
-function careerJdMergeMessages(existingSkills, jdMd, jdName) {
+function careerJdMergeMessages(existingSkills, jdMd, jdName, { knowledge = [] } = {}) {
   const existing = (existingSkills || []).map((n) => ({
     id: n.id, name: n.name, level: n.level, core: !!n.core,
     branch: n.branch || '', importance: n.importance || 'important', prereqs: n.prereqs
@@ -262,20 +279,24 @@ function careerJdMergeMessages(existingSkills, jdMd, jdName) {
   return [
     {
       role: 'system',
-      content: `You are a veteran hiring manager maintaining a career skills graph. You extend existing graphs without breaking them. You respond with strict JSON.`
+      content: 'You are a veteran technical hiring manager maintaining a career map of tools and skills. You extend existing maps without breaking them. You respond with strict JSON.'
     },
     {
       role: 'user',
-      content: `${hasExisting ? `The career already has this skills graph:
+      content: `${hasExisting ? `The career already has this map:
 ${JSON.stringify(existing, null, 1)}
 
-TASK: A job description is being added (below). Return the FULL MERGED graph:
-- KEEP every existing node with its exact "id" (you may adjust "importance" up if the JD demands it, add prereq edges, or improve a blurb).
-- REUSE existing ids whenever the JD needs the same skill — never duplicate a skill under a new id.
-- ADD at most 12 new nodes for skills this JD requires that are missing.
-- On nodes this JD explicitly requires, ground "used_in_role" in the JD's actual wording.` : `TASK: Build the prerequisite skills graph for the role in the job description below — the skills required, from foundations up to the role's defining skills.`}
+TASK: A job description is being added (below). Return the FULL MERGED map:
+- KEEP every existing node with its exact "id" (you may raise "importance" if the JD demands it, add prereq edges, or improve a blurb).
+- REUSE existing ids whenever the JD asks for the same tool or skill. Never duplicate one under a new id.
+- ADD at most 12 new nodes for tools or skills this JD requires that are missing.
+- On nodes this JD explicitly requires, ground "used_in_role" in the JD's wording.` : `TASK: Build the career map for the role in the job description below: the tools and skills it requires, from foundation tools up to the role's defining capabilities.`}
+
+Also return, at the top level next to "nodes", "jd_skill_ids": the ids of EVERY node this job description asks for (required or nice to have), existing or new.
 
 ${CAREER_RULES}
+
+${knowledgeBlock(knowledge)}
 
 ${CAREER_SCHEMA}
 
@@ -283,6 +304,101 @@ JOB DESCRIPTION (${jdName}):
 """
 ${truncateDoc(jdMd, 25000, 4000)}
 """`
+    }
+  ];
+}
+
+// Suggest roles from what the learner has studied (and an optional interest).
+function careerSuggestMessages({ knowledge = [], interest = '' } = {}) {
+  return [
+    {
+      role: 'system',
+      content: 'You are a career advisor for students in technical fields. You match what someone has studied to real, commonly posted job titles. You respond with strict JSON.'
+    },
+    {
+      role: 'user',
+      content: `TASK: Suggest 5 career roles that fit this learner.
+- Use real job titles that appear in postings (e.g. "Machine Learning Engineer", "Data Scientist", "Quantitative Researcher", "Robotics Software Engineer").
+- Base the fit on the knowledge graph: which studied concepts the role actually uses.
+- ${interest ? `The learner's interest is "${interest}". At least 3 suggestions must match it.` : 'No interest was given; rely on the knowledge graph.'}
+
+Return STRICT JSON only:
+{ "suggestions": [ { "title": "Job title", "why": "one sentence naming 2-3 of the learner's concepts the role uses", "matched_concepts": ["concept_id"], "starter_tools": ["Tool", "Tool", "Tool"] } ] }
+
+${knowledgeBlock(knowledge)}`
+    }
+  ];
+}
+
+// ---------------- project kinds, summaries, cheatsheets ----------------
+
+// Tells the analysis prompt what kind of material a non-paper project holds.
+const KIND_NOTES = {
+  class: 'This project is a CLASS the learner is taking. The uploaded files are course material (lecture notes, slides, problem sets, a syllabus). Map what a student must know to follow the class; the "core" nodes are the main topics it teaches. Wherever the instructions say "paper", read "this course material".',
+  course: 'This project is a COURSE (for example an online course or a textbook). The uploaded files are its material. Map the prerequisites up to the course\'s main topics, which are the "core" nodes. Wherever the instructions say "paper", read "this course material".',
+  club: 'This project is a CLUB or team activity. The uploaded files are club material (meeting notes, guides, competition rules, reading lists). Map the concepts a member needs; the "core" nodes are what the club works on. Wherever the instructions say "paper", read "this club material".',
+  hackathon: 'This project is a HACKATHON. The uploaded files describe the challenge, the tools or APIs, and the team\'s notes. Map the concepts and techniques the team needs to build it; the "core" nodes are the project\'s key technical pieces. Wherever the instructions say "paper", read "this hackathon material".',
+  notes: 'This project holds the learner\'s own NOTES. Map the concepts the notes cover and what is needed to understand them; the "core" nodes are the notes\' main ideas. Wherever the instructions say "paper", read "these notes".'
+};
+function projectKindNote(kind) {
+  return KIND_NOTES[kind] || '';
+}
+
+function paperSummaryMessages(md, name, kind) {
+  const what = !kind || kind === 'paper' ? 'paper' : 'material';
+  return [
+    {
+      role: 'system',
+      content: 'You are a precise research explainer. You summarise documents faithfully, in your own words, for a strong student. You respond with strict JSON.'
+    },
+    {
+      role: 'user',
+      content: `TASK: Summarise the ${what} below for a learner.
+
+Return STRICT JSON only: { "title": "cleaned-up title", "summary_md": "markdown" }
+
+"summary_md" uses exactly these sections, each short:
+## TL;DR (2 sentences)
+## Key ideas (3-6 bullets with bold lead words)
+## How it works (one paragraph on the method, mechanism or main argument)
+## Results (the main findings, claims or takeaways, with any numbers the text gives)
+## Why it matters (1-2 sentences)
+Rules: write in your own words and never copy sentences from the text; state only what the text supports; use $...$ for inline math and $$...$$ for display math; no preamble.
+
+DOCUMENT (${name}), converted from PDF, may contain extraction noise:
+"""
+${truncateDoc(md, 40000, 6000)}
+"""`
+    }
+  ];
+}
+
+function cheatsheetMessages({ name, kind, field, nodes, lessonText }) {
+  const concepts = (nodes || []).filter((n) => n.level !== 0).map((n) => ({
+    name: n.name, core: !!n.core, branch: n.branch || '', blurb: n.blurb || '',
+    used: String(Object.values(n.usage || {})[0] || '').slice(0, 300)
+  }));
+  return [
+    {
+      role: 'system',
+      content: 'You write one-page study cheatsheets: dense, accurate and easy to scan. You respond with strict JSON.'
+    },
+    {
+      role: 'user',
+      content: `TASK: Write a one-page cheatsheet for the ${kind && kind !== 'paper' ? kind : 'paper'} project "${name}"${field ? ` (field: ${field})` : ''}, covering the concept map below.
+
+Return STRICT JSON only: { "cheatsheet_md": "markdown" }
+
+"cheatsheet_md" has these sections:
+## Core formulas (a markdown table "| Idea | Formula |" with the 5-10 most important formulas, math in $...$; if the topic has no formulas, call the section "## Key rules" and list rules instead)
+## Key definitions (one line each for the most important concepts)
+## Build-up path (the concepts in learning order with arrows, ending at the core)
+## Remember (3-6 bullets: common pitfalls and the reason behind each)
+Stay under about 450 words. Use only standard, correct facts.
+
+CONCEPT MAP:
+${JSON.stringify(concepts, null, 1)}
+${lessonText ? `\nSAVED LESSON EXCERPTS:\n${lessonText}` : ''}`
     }
   ];
 }
@@ -373,4 +489,8 @@ Rules for every answer:
   return messages;
 }
 
-module.exports = { conceptExtractionMessages, conceptMergeMessages, lessonMessages, lessonAskMessages, truncateDoc, BASELINE, careerSkillsMessages, careerJdMergeMessages, resumeSkillsMessages };
+module.exports = {
+  conceptExtractionMessages, conceptMergeMessages, lessonMessages, lessonAskMessages, truncateDoc, BASELINE,
+  careerSkillsMessages, careerJdMergeMessages, careerSuggestMessages, resumeSkillsMessages,
+  projectKindNote, paperSummaryMessages, cheatsheetMessages
+};

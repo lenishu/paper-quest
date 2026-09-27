@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../api';
 import { useToast } from './bits';
 import { ACCENT_HUES } from '../graphLayout';
+import { kindOf } from '../projectKinds';
 
 const HUES = ACCENT_HUES;
 const GLYPHS = ['◈', '◇', '◉', '◆', '❖'];
@@ -28,7 +29,7 @@ export default function ProjectsView({ projects, onOpenProject, onNewProject, on
       <div className="view-head">
         <div>
           <h1 className="view-title">Projects</h1>
-          <p className="view-sub">Each project holds papers and the prerequisite map grown from them.</p>
+          <p className="view-sub">A project is a paper, class, course, club, hackathon or your notes, plus the prerequisite map grown from it.</p>
         </div>
         <div className="view-head-actions">
           <button className="btn-ghost" onClick={onTryDemo}>✦ Try the demo</button>
@@ -43,7 +44,7 @@ export default function ProjectsView({ projects, onOpenProject, onNewProject, on
           return (
             <div key={p.id} className="pjv-card">
               <div className="pjv-top">
-                <span className="proj-glyph" style={{ color: hue, borderColor: hue + '4d', background: hue + '1a' }}>{GLYPHS[i % GLYPHS.length]}</span>
+                <span className="proj-glyph" style={{ color: hue, borderColor: hue + '4d', background: hue + '1a' }}>{p.kind && p.kind !== 'paper' ? kindOf(p.kind).icon : GLYPHS[i % GLYPHS.length]}</span>
                 {renaming && renaming.id === p.id ? (
                   <input autoFocus className="pjv-rename" value={renaming.name}
                     onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
@@ -53,7 +54,7 @@ export default function ProjectsView({ projects, onOpenProject, onNewProject, on
                   <button className="pjv-name" title="Open project" onClick={() => onOpenProject(p.id)}>{p.name}</button>
                 )}
               </div>
-              <div className="pjv-meta">{p.paperCount} paper{p.paperCount === 1 ? '' : 's'} · {p.masteredCount}/{p.conceptCount} concepts</div>
+              <div className="pjv-meta"><span className="kind-chip">{kindOf(p.kind).icon} {kindOf(p.kind).label}</span> {p.paperCount} {p.kind && p.kind !== 'paper' ? 'file' : 'paper'}{p.paperCount === 1 ? '' : 's'} · {p.masteredCount}/{p.conceptCount} concepts</div>
               <div className="pjv-bar"><i style={{ width: `${pct}%` }} /></div>
               {p.overlaps && p.overlaps.length > 0 && (
                 <div className="pjv-overlap" title={p.overlaps.map((o) => `${o.name}: ${o.sample.join(', ')}`).join('\n')}>
@@ -71,7 +72,7 @@ export default function ProjectsView({ projects, onOpenProject, onNewProject, on
         <button className="pjv-new" onClick={onNewProject}>
           <span className="pjv-new-plus">＋</span>
           <span>New project</span>
-          <span className="dim small">Drop a PDF in, get a skill map out.</span>
+          <span className="dim small">A paper, class, course, club, hackathon or notes.</span>
         </button>
       </div>
     </div>

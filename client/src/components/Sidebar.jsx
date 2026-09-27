@@ -5,12 +5,13 @@ import { ACCENT_HUES } from '../graphLayout';
 const QUOTE = { text: 'The beautiful thing about learning is that no one can take it away from you.', by: 'B.B. King' };
 const BADGE_HUES = ACCENT_HUES;
 
-export default function Sidebar({ dash, onUpload, onNewProject, onExplore, onDailyQuest, onResume, onSettings, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
+export default function Sidebar({ dash, onUpload, onNewProject, onExplore, onDailyQuest, onResume, onSettings, onApiKey, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
   const p = dash?.profile || {};
   const stats = dash?.stats || {};
   const badges = dash?.badges || [];
   const earned = badges.filter((b) => b.earned);
   const shown = [...earned, ...badges.filter((b) => !b.earned)].slice(0, 5);
+  const ai = dash?.ai;
 
   return (
     <aside className="side">
@@ -58,16 +59,26 @@ export default function Sidebar({ dash, onUpload, onNewProject, onExplore, onDai
       <div className="side-actions">
         <div className="eyebrow">Quick Actions</div>
         <button onClick={onUpload}><span>⬆</span> Upload Paper</button>
-        <button onClick={onNewProject}><span>＋</span> Create Project</button>
+        <button data-tour="new-project-side" onClick={onNewProject}><span>＋</span> Create Project</button>
         <button onClick={onExplore}><span>◎</span> Explore Concepts</button>
         <button onClick={onDailyQuest}><span>◆</span> Daily Quest</button>
         <button onClick={onResume}><span>▶</span> Resume Learning</button>
       </div>
 
-      <div className="side-quote">
-        <div className="side-quote-mark">“</div>
-        <p>{QUOTE.text}</p>
-        <div className="side-quote-by">— {QUOTE.by}</div>
+      <div className="side-bottom">
+        <button className="side-apikey" data-tour="api-key" onClick={onApiKey}>
+          <span className="side-apikey-icon" aria-hidden="true">🔑</span>
+          <span className="side-apikey-text">
+            <b>API key</b>
+            <span>{ai ? (ai.ready ? ai.label : 'Add a key to use AI') : 'AI settings'}</span>
+          </span>
+          <span className="side-apikey-go" aria-hidden="true">›</span>
+        </button>
+        <div className="side-quote">
+          <div className="side-quote-mark">“</div>
+          <p>{QUOTE.text}</p>
+          <div className="side-quote-by">— {QUOTE.by}</div>
+        </div>
       </div>
 
       <div className="side-foot">

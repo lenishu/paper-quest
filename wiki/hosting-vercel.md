@@ -65,6 +65,7 @@ local project import.
    | `PAPERQUEST_DEVELOPER_GOOGLE_SUBS` | Optional Google subject IDs |
    | `GOOGLE_CLIENT_ID` | Optional override of `server/auth-config.json` |
    | `PAPERQUEST_ALLOWED_AI_ORIGINS` | Optional extra trusted AI origins |
+   | `PAPERQUEST_SHARED_GEMINI_KEYS` | Free Google AI Studio keys, comma separated; mark **Sensitive**. Every workspace uses them by default, and requests rotate to the next key when one hits its rate limit. Add or replace keys here to cycle them |
 
 4. Redeploy. Environment changes apply only to new deployments.
 5. Google Auth Platform: add `https://<project>.vercel.app`, and each custom
@@ -95,14 +96,24 @@ local project import.
 - The account menu opens a dedicated account dialog. Switch Google account revokes
   the current app session, preserves its saved workspace, and reopens a neutral
   Google button with automatic account selection disabled.
-- Fresh workspaces receive a five-stop guided sample: Attention Is All You Need,
-  its prepared map, a saved refresher, a chosen career path, and the combined
-  knowledge graph. No AI provider key is needed. The menu can restart the tour.
+- A fresh workspace (no projects) starts a 12-step spotlight tour on its first
+  dashboard visit: dashboard tracking, the New Project button and form, the real
+  Attention Is All You Need paper (embedded from arXiv), its map, the saved
+  refresher and quiz, study tools, a sample career built from real tools, the
+  knowledge graph, and the API key button. No AI provider key is needed. The
+  profile menu restarts it.
+- AI works out of the box when `PAPERQUEST_SHARED_GEMINI_KEYS` is set: settings
+  show a keyless "Shared API · free" connection, the keys stay on the server, and
+  users can still add their own key under 🔑 API key.
 - Developer account > Judge access creates a 30-day, revocable read-only snapshot
-  of project and career graphs at `/?judge=1`. Send the link and key to the judge.
+  at `/?judge=1`: a guided showcase that explains each feature next to live data
+  (dashboard tracking, projects of every kind with their maps, saved refreshers
+  and quizzes, cheatsheets and summaries, the knowledge graph, and career paths
+  with job and resume comparisons). Send the link and key to the judge.
   Refreshing generates a new key and invalidates the previous key. New uploads or
-  maps appear after refreshing. Uploaded documents, notes, chats, resumes, API
-  keys and workspace recovery tokens are excluded.
+  maps appear after refreshing. Uploaded documents (only arXiv links), notes,
+  chats, resumes (only match counts), API keys and workspace recovery tokens are
+  excluded.
 - Developer backup imports add missing project folders while retaining existing
   project folders and newer progress. A staged backup is restored once on the
   developer's next session. Recovery receipts prevent deleted projects returning.

@@ -6,10 +6,14 @@ const multer = require('multer');
 const store = require('./store');
 const { sanitizeGraph, computeDepths, computeStates, xpForNode, levelInfo, repairGraph, isDegenerate, effectiveTier, isAdvanced, slugify } = require('./graphUtil');
 const { callLLM, callLLMRaw, parseModelJSON, httpError } = require('./llm');
-const { conceptExtractionMessages, conceptMergeMessages, lessonMessages, lessonAskMessages, careerSkillsMessages, careerJdMergeMessages, resumeSkillsMessages } = require('./prompts');
+const {
+  conceptExtractionMessages, conceptMergeMessages, lessonMessages, lessonAskMessages,
+  careerSkillsMessages, careerJdMergeMessages, careerSuggestMessages, resumeSkillsMessages,
+  projectKindNote, paperSummaryMessages, cheatsheetMessages
+} = require('./prompts');
 const { pdfToMarkdown } = require('./pdfToMd');
 const { resolveReferences, expandPaper, MODES } = require('./references');
-const { DEMO_NODES, DEMO_PAPER_MD, DEMO_LESSON_LINEAR_ALGEBRA } = require('./demo');
+const { createDemoProject } = require('./demo');
 
 if (!process.env.PAPERQUEST_HOSTED) store.init();
 
@@ -36,6 +40,7 @@ function projectSummary(p, mastered) {
   return {
     id: p.id,
     name: p.name,
+    kind: p.kind || 'paper',
     createdAt: p.createdAt,
     paperCount: p.papers.length,
     conceptCount: learnable.length,
@@ -132,33 +137,15 @@ app.get('/api/projects', (req, res) => {
 });
 
 app.post('/api/projects', (req, res) => {
-  const p = store.createProject((req.body && req.body.name) || 'Untitled project');
+  const p = store.createProject((req.body && req.body.name) || 'Untitled project', req.body && req.body.kind);
   store.logEvent(p.id, 'project_created', { name: p.name });
   res.json(p);
 });
 
+// The demo: the real Attention Is All You Need paper (embedded from arXiv), its map,
+// a saved refresher, summary and cheatsheet. Works without an API key.
 app.post('/api/projects/demo', (req, res) => {
-  const p = store.createProject('Demo — Attention Is All You Need');
-  const paperId = store.id();
-  store.savePaperFiles(p.id, paperId, 'attention-demo.md', Buffer.from(DEMO_PAPER_MD), DEMO_PAPER_MD);
-  p.papers.push({
-    id: paperId,
-    name: 'Attention Is All You Need (demo)',
-    pages: 0,
-    addedAt: Date.now(),
-    analyzed: true
-  });
-  p.nodes = sanitizeGraph(DEMO_NODES.map((n) => ({ ...n, sources: [paperId] })));
-  for (const n of p.nodes) {
-    n.usage = n.usedInPaper ? { [paperId]: n.usedInPaper } : {};
-    delete n.usedInPaper;
-    delete n.forNewPaper;
-  }
-  p.field = 'machine learning';
-  store.saveProject(p);
-  store.saveLesson(p.id, 'linear_algebra', DEMO_LESSON_LINEAR_ALGEBRA);
-  store.logEvent(p.id, 'paper_added', { paper: 'Attention Is All You Need (demo)' });
-  res.json(p);
+  res.json(createDemoProject());
 });
 
 app.get('/api/projects/:id', (req, res) => {
@@ -183,13 +170,15 @@ app.get('/api/projects/:id', (req, res) => {
   const bookmarks = Object.values(bm).filter((x) => x.projectId === p.id).map((x) => x.conceptId);
   const notes = store.readNodeNotes(p.id);
   const lessons = store.listLessons(p.id); // { conceptId: savedAtMs } — cached lessons
-  res.json({ project: p, states, mastery, sharedWith: relevantShared, canUndo, bookmarks, notes, lessons });
+  const cheatsheet = store.readCheatsheet(p.id);
+  res.json({ project: p, states, mastery, sharedWith: relevantShared, canUndo, bookmarks, notes, lessons, cheatsheetAt: cheatsheet ? cheatsheet.generatedAt : 0 });
 });
 
 app.patch('/api/projects/:id', (req, res) => {
   const p = store.getProject(req.params.id);
   if (!p) return res.status(404).json({ error: 'Project not found' });
   if (req.body && req.body.name) p.name = String(req.body.name).trim().slice(0, 80);
+  if (req.body && req.body.kind) p.kind = store.projectKind(req.body.kind);
   store.saveProject(p);
   res.json(p);
 });
@@ -368,6 +357,8 @@ app.post(
           content: 'PROJECT MEMORY — respect this canonical vocabulary, goals and notes:\n' + memory.slice(0, 4000)
         });
       }
+      const kindNote = projectKindNote(p.kind);
+      if (kindNote) msgs.unshift({ role: 'system', content: 'MATERIAL TYPE — ' + kindNote });
       return msgs;
     };
 
@@ -451,6 +442,75 @@ app.delete('/api/projects/:id/papers/:paperId', (req, res) => {
   if (paper) store.logEvent(p.id, 'paper_removed', { paper: paper.name });
   res.json({ project: p });
 });
+
+// ---------------- summaries & cheatsheets ----------------
+// Written once by AI and saved (papers/<id>.summary.json, cheatsheet.json), so
+// reopening is free. GET returns the saved copy; POST writes one (or a new one
+// with { regenerate: true }).
+
+app.get('/api/projects/:id/papers/:paperId/summary', (req, res) => {
+  const p = store.getProject(req.params.id);
+  const paper = p && p.papers.find((x) => x.id === req.params.paperId);
+  if (!paper) throw httpError(404, 'Paper not found');
+  const summary = store.readPaperSummary(p.id, paper.id);
+  if (!summary) throw httpError(404, 'No summary yet');
+  res.json({ ...summary, cached: true });
+});
+
+app.post(
+  '/api/projects/:id/papers/:paperId/summary',
+  wrap(async (req, res) => {
+    const p = store.getProject(req.params.id);
+    if (!p) throw httpError(404, 'Project not found');
+    const paper = p.papers.find((x) => x.id === req.params.paperId);
+    if (!paper) throw httpError(404, 'Paper not found');
+    const saved = store.readPaperSummary(p.id, paper.id);
+    if (saved && !(req.body && req.body.regenerate)) return res.json({ ...saved, cached: true });
+    const md = store.readPaperMarkdown(p.id, paper.id);
+    if (!md) throw httpError(404, 'This paper has no extracted text to summarise.');
+    const parsed = parseModelJSON(await callLLM(store.getSettings(), paperSummaryMessages(md, paper.title || paper.name, p.kind), { json: true, maxTokens: 6000 }));
+    const markdown = String(parsed.summary_md || parsed.summary || '').trim();
+    if (markdown.length < 80) throw httpError(502, 'The model returned an empty summary. Try again.');
+    const summary = { markdown, generatedAt: Date.now() };
+    store.savePaperSummary(p.id, paper.id, summary);
+    paper.summarizedAt = summary.generatedAt;
+    if (!paper.title && parsed.title) paper.title = String(parsed.title).slice(0, 200);
+    store.saveProject(p);
+    store.logEvent(p.id, 'paper_summarized', { paper: paper.title || paper.name });
+    res.json({ ...summary, cached: false });
+  })
+);
+
+app.get('/api/projects/:id/cheatsheet', (req, res) => {
+  const p = store.getProject(req.params.id);
+  if (!p) throw httpError(404, 'Project not found');
+  const sheet = store.readCheatsheet(p.id);
+  if (!sheet) throw httpError(404, 'No cheatsheet yet');
+  res.json({ ...sheet, cached: true });
+});
+
+app.post(
+  '/api/projects/:id/cheatsheet',
+  wrap(async (req, res) => {
+    const p = store.getProject(req.params.id);
+    if (!p) throw httpError(404, 'Project not found');
+    if (!p.nodes.some((n) => n.level !== 0)) throw httpError(400, 'Map this project first: add a paper, notes or course material.');
+    const saved = store.readCheatsheet(p.id);
+    if (saved && !(req.body && req.body.regenerate)) return res.json({ ...saved, cached: true });
+    // Saved refreshers make the cheatsheet concrete (formulas, examples).
+    const lessonText = Object.keys(store.listLessons(p.id)).slice(0, 8).map((cid) => {
+      const lesson = store.readLesson(p.id, cid), node = p.nodes.find((n) => n.id === cid);
+      return lesson && node ? `### ${node.name}\n${String(lesson.lesson || '').slice(0, 900)}` : '';
+    }).filter(Boolean).join('\n\n');
+    const parsed = parseModelJSON(await callLLM(store.getSettings(), cheatsheetMessages({ name: p.name, kind: p.kind, field: p.field, nodes: p.nodes, lessonText }), { json: true, maxTokens: 6000 }));
+    const markdown = String(parsed.cheatsheet_md || parsed.cheatsheet || '').trim();
+    if (markdown.length < 80) throw httpError(502, 'The model returned an empty cheatsheet. Try again.');
+    const sheet = { markdown, generatedAt: Date.now(), concepts: p.nodes.length };
+    store.saveCheatsheet(p.id, sheet);
+    store.logEvent(p.id, 'cheatsheet_generated', { name: p.name });
+    res.json({ ...sheet, cached: false });
+  })
+);
 
 // ---------------- lessons & mastery ----------------
 
@@ -686,6 +746,9 @@ app.get(
 // ---------------- raw PDF (for the reader) ----------------
 
 app.get('/api/projects/:id/papers/:paperId/pdf', (req, res) => {
+  // The demo paper is embedded from arXiv (its licence doesn't let us re-host it).
+  const paper = (store.getProject(req.params.id)?.papers || []).find((x) => x.id === req.params.paperId);
+  if (paper && String(paper.pdfUrl || '').startsWith('https://arxiv.org/pdf/')) return res.redirect(paper.pdfUrl);
   const raw = store.paperRawPath(req.params.id, req.params.paperId);
   if (!raw || !fs.existsSync(raw) || !raw.toLowerCase().endsWith('.pdf'))
     return res.status(404).json({ error: 'No PDF for this paper (it may be a Markdown/text upload).' });
@@ -951,6 +1014,13 @@ app.post('/api/quest/claim', (req, res) => {
 
 // ---------------- dashboard (everything the home needs in one call) ----------------
 
+// Which AI connection is active, for the API key buttons (never includes a key).
+function aiStatus() {
+  const conn = store.activeConnection(store.getSettings());
+  if (!conn) return { ready: false, shared: false, label: '' };
+  return { ready: !!(conn.shared || (conn.key || '').trim()), shared: !!conn.shared, label: conn.shared ? 'Shared Gemini · free' : conn.label || conn.provider };
+}
+
 app.get('/api/dashboard', (req, res) => {
   const mastery = store.getMastery();
   const masteredIds = new Set(Object.keys(mastery));
@@ -1001,7 +1071,7 @@ app.get('/api/dashboard', (req, res) => {
 
   // projects with progress
   const projOut = projects.map((p) => { const learnable = p.nodes.filter((n) => n.level !== 0); const done = learnable.filter((n) => masteredIds.has(n.id)).length;
-    return { id: p.id, name: p.name, paperCount: p.papers.length, done, total: learnable.length, progress: learnable.length ? done / learnable.length : 0 }; });
+    return { id: p.id, name: p.name, kind: p.kind || 'paper', paperCount: p.papers.length, done, total: learnable.length, progress: learnable.length ? done / learnable.length : 0 }; });
 
   // recommended next
   const unblocks = {}; for (const e of edges) unblocks[e.from] = (unblocks[e.from] || 0) + 1;
@@ -1056,13 +1126,16 @@ app.get('/api/dashboard', (req, res) => {
     counts: { known: mastered, ready, flagged: concepts.filter((c) => c.flagged).length },
     xpWeek, weeklyGoal: profile.weeklyGoal || 300,
     quests: computeQuestState(),
-    badges
+    badges,
+    ai: aiStatus()
   });
 });
 
 // ---------------- career paths ----------------
 // Careers are GLOBAL (like mastery/profile), stored under data/careers/.
-// Skill graphs reuse the exact paper pipeline: sanitizeGraph -> degenerate retry -> repairGraph.
+// A career map lists the tools and skills job postings ask for; each tool links to
+// the knowledge-graph concepts it uses ("concepts"). Graphs reuse the paper
+// pipeline: sanitizeGraph -> degenerate retry -> repairGraph.
 
 const normSkill = (s) => String(s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -1076,32 +1149,39 @@ function skillMatches(set, name) {
   return false;
 }
 
-// What the user already knows: mastered concepts (by canonical id AND name),
-// concepts currently in project graphs but not yet mastered ("learning"),
-// and skills evidenced by the uploaded resume.
+// The knowledge graph as careers see it: every concept across projects (with its
+// mastery state) plus name sets for matching tools against studied concepts.
 function careerCtx() {
   const mastered = masteredIdSet();
   const masteredNames = new Set();
   const learningNames = new Set();
+  const concepts = new Map(); // id -> { id, name, state }
   for (const p of store.listProjects()) {
     for (const n of p.nodes || []) {
       const nm = normSkill(n.name);
       if (!nm) continue;
       if (n.level === 0 || mastered.has(n.id)) masteredNames.add(nm);
       else learningNames.add(nm);
+      if (n.level !== 0 && !concepts.has(n.id)) concepts.set(n.id, { id: n.id, name: n.name, state: mastered.has(n.id) ? 'mastered' : 'studying' });
     }
   }
-  return { masteredIds: mastered, masteredNames, learningNames };
+  return { masteredIds: mastered, masteredNames, learningNames, concepts };
 }
 
+// Concepts for prompts, mastered ones first.
+const knowledgeList = (ctx) => [...ctx.concepts.values()].sort((a, b) => (a.state === 'mastered' ? 0 : 1) - (b.state === 'mastered' ? 0 : 1));
+
+// known    = on this career's resume, marked "I know this", or a mastered concept of the same name
+// learning = you mastered concepts this tool uses, or a same-named concept is in a project
+// notreq   = optional and not started; tolearn = everything else
 function careerStates(career, ctx) {
   const resumeNames = new Set((((career.resume || {}).skills) || []).map(normSkill).filter(Boolean));
+  const marked = career.known || {};
   const states = {};
   for (const s of career.skills || []) {
     let st;
-    if (s.level === 0) st = 'known'; // foundation skills are assumed
-    else if (ctx.masteredIds.has(s.id) || skillMatches(ctx.masteredNames, s.name) || skillMatches(resumeNames, s.name)) st = 'known';
-    else if (skillMatches(ctx.learningNames, s.name)) st = 'learning';
+    if (marked[s.id] || ctx.masteredIds.has(s.id) || skillMatches(ctx.masteredNames, s.name) || skillMatches(resumeNames, s.name)) st = 'known';
+    else if ((s.concepts || []).some((c) => ctx.masteredIds.has(c)) || skillMatches(ctx.learningNames, s.name)) st = 'learning';
     else if (s.importance === 'optional') st = 'notreq';
     else st = 'tolearn';
     states[s.id] = st;
@@ -1122,74 +1202,130 @@ function careerStats(career, states) {
   return { total, known, learning, tolearn, matchPct };
 }
 
-// Shared LLM pipeline for career skill graphs (mirrors the paper analyze route).
-async function runCareerGraph(career, buildMessages) {
+// How one job's required skills compare with what you know.
+function coverage(ids, career, states) {
+  const inGraph = new Set((career.skills || []).map((s) => s.id));
+  const req = [...new Set(ids || [])].filter((id) => inGraph.has(id));
+  const known = req.filter((id) => states[id] === 'known').length;
+  const learning = req.filter((id) => states[id] === 'learning').length;
+  const missing = req.filter((id) => states[id] !== 'known' && states[id] !== 'learning');
+  return { total: req.length, known, learning, missing, pct: req.length ? Math.round(((known + learning * 0.5) / req.length) * 100) : 0 };
+}
+
+// Shared LLM pipeline for career maps (mirrors the paper analyze route).
+async function runCareerGraph(career, buildMessages, ctx) {
   const settings = store.getSettings();
   const attempt = async () => {
-    const rawText = await callLLM(settings, buildMessages(), { json: true, maxTokens: 16000 });
-    const parsed = parseModelJSON(rawText);
+    const parsed = parseModelJSON(await callLLM(settings, buildMessages(), { json: true, maxTokens: 16000 }));
     const raws = Array.isArray(parsed.nodes) ? parsed.nodes : [];
     // career prompts use "used_in_role"; sanitizeGraph reads "used_in_paper"
     for (const r of raws) if (r && r.used_in_role && !r.used_in_paper) r.used_in_paper = r.used_in_role;
     const nodes = sanitizeGraph(raws);
-    // sanitizeGraph whitelists fields - re-attach importance by canonical id
-    const imp = new Map();
+    // sanitizeGraph whitelists fields - re-attach importance and concepts by canonical id
+    const extra = new Map();
     for (const r of raws) {
-      if (!r || typeof r !== 'object') continue;
-      const key = slugify(r.id || r.name);
-      if (key && ['critical', 'important', 'optional'].includes(r.importance)) imp.set(key, r.importance);
+      const key = r && typeof r === 'object' && slugify(r.id || r.name);
+      if (key && !extra.has(key)) extra.set(key, r);
     }
     const oldById = new Map((career.skills || []).map((n) => [n.id, n]));
     for (const n of nodes) {
-      const old = oldById.get(n.id);
-      n.importance = imp.get(n.id) || (old && old.importance) || 'important';
+      const r = extra.get(n.id) || {}, old = oldById.get(n.id);
+      n.importance = ['critical', 'important', 'optional'].includes(r.importance) ? r.importance : (old && old.importance) || 'important';
       n.roleNote = n.usedInPaper || (old && old.roleNote) || '';
+      // A JD merge may omit links it was never shown, so keep the old ones too.
+      const fresh = Array.isArray(r.concepts) ? r.concepts.map(slugify) : [];
+      n.concepts = [...new Set([...fresh, ...((old && old.concepts) || [])])].filter((c) => ctx.concepts.has(c)).slice(0, 6);
       delete n.usedInPaper;
       delete n.forNewPaper;
     }
-    return nodes;
+    return { nodes, parsed };
   };
-  let nodes = await attempt();
-  if (isDegenerate(nodes)) {
+  let out = await attempt();
+  if (isDegenerate(out.nodes)) {
     try {
       const retry = await attempt();
-      if (!isDegenerate(retry)) nodes = retry;
+      if (!isDegenerate(retry.nodes)) out = retry;
     } catch (_) {}
   }
-  repairGraph(nodes);
-  return nodes;
+  repairGraph(out.nodes);
+  return out;
 }
 
 function careerPayload(career, ctx) {
   const states = careerStates(career, ctx);
-  return { ...career, states, stats: careerStats(career, states) };
+  const skills = career.skills || [];
+  const resumeNames = new Set((((career.resume || {}).skills) || []).map(normSkill).filter(Boolean));
+  const resume = career.resume ? {
+    ...career.resume,
+    matched: skills.filter((s) => skillMatches(resumeNames, s.name)).map((s) => s.id),
+    gaps: skills.filter((s) => s.importance === 'critical' && states[s.id] !== 'known').map((s) => s.id)
+  } : null;
+  const jds = (career.jds || []).map((j) => ({ ...j, match: coverage(j.skillIds, career, states) }));
+  // names and states of the knowledge-graph concepts this map links to
+  const knowledge = {};
+  for (const s of skills) for (const c of s.concepts || []) if (ctx.concepts.has(c)) knowledge[c] = ctx.concepts.get(c);
+  return { ...career, resume, jds, knowledge, states, stats: careerStats(career, states) };
 }
 
 app.get('/api/careers', (req, res) => {
   const ctx = careerCtx();
   const careers = store.listCareers().map((c) => {
     const states = careerStates(c, ctx);
-    return { id: c.id, name: c.name, primary: !!c.primary, createdAt: c.createdAt, skillCount: (c.skills || []).length, jdCount: (c.jds || []).length, resume: c.resume ? { name: c.resume.name, skillCount: (c.resume.skills || []).length } : null, stats: careerStats(c, states) };
+    return { id: c.id, name: c.name, primary: !!c.primary, createdAt: c.createdAt, interest: c.interest || '', skillCount: (c.skills || []).length, jdCount: (c.jds || []).length, resume: c.resume ? { name: c.resume.name, skillCount: (c.resume.skills || []).length } : null, stats: careerStats(c, states) };
   });
-  res.json({ careers });
+  res.json({ careers, suggestions: store.readCareerSuggestions(), concepts: ctx.concepts.size });
 });
 
+// A preset or suggested title ({name}) or free text the learner typed ({interest}):
+// typed text may be an interest rather than a job title, so the AI names the role.
 app.post('/api/careers', (req, res) => {
-  const name = String((req.body || {}).name || '').trim();
-  if (!name) throw httpError(400, 'Career name is required');
-  res.json(store.createCareer(name));
+  const body = req.body || {};
+  const interest = String(body.interest || '').trim().slice(0, 300);
+  const name = String(body.name || '').trim() || interest;
+  if (!name) throw httpError(400, 'Choose a career or type an interest');
+  const c = store.createCareer(name);
+  if (interest) Object.assign(c, { interest, fromInterest: !String(body.name || '').trim() });
+  res.json(store.saveCareer(c));
 });
+
+// AI career suggestions from the knowledge graph (and an optional interest).
+app.post(
+  '/api/careers/suggest',
+  wrap(async (req, res) => {
+    const interest = String((req.body || {}).interest || '').trim().slice(0, 300);
+    const ctx = careerCtx();
+    const knowledge = knowledgeList(ctx);
+    if (!knowledge.length && !interest) throw httpError(400, 'Add a project or type an interest first, so the AI has something to go on.');
+    const parsed = parseModelJSON(await callLLM(store.getSettings(), careerSuggestMessages({ knowledge, interest }), { json: true, maxTokens: 4000 }));
+    const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : []).filter((s) => s && s.title).slice(0, 6).map((s) => ({
+      title: String(s.title).trim().slice(0, 80),
+      why: String(s.why || '').slice(0, 300),
+      concepts: (Array.isArray(s.matched_concepts) ? s.matched_concepts : []).map(slugify).filter((id) => ctx.concepts.has(id)).slice(0, 5).map((id) => ctx.concepts.get(id)),
+      tools: (Array.isArray(s.starter_tools) ? s.starter_tools : []).map((t) => String(t).slice(0, 40)).slice(0, 4)
+    }));
+    if (!suggestions.length) throw httpError(502, 'The model returned no suggestions. Try again.');
+    const out = { suggestions, basedOn: knowledge.length, interest, at: Date.now() };
+    store.saveCareerSuggestions(out);
+    res.json(out);
+  })
+);
 
 app.patch('/api/careers/:id', (req, res) => {
   const c = store.getCareer(req.params.id);
   if (!c) throw httpError(404, 'Career not found');
-  const { name, primary } = req.body || {};
+  const { name, primary, known } = req.body || {};
   if (name) c.name = String(name).trim().slice(0, 80);
   if (primary === true) {
     for (const other of store.listCareers()) {
       if (other.id !== c.id && other.primary) { other.primary = false; store.saveCareer(other); }
     }
     c.primary = true;
+  }
+  // "I know this" on one skill: { known: { id, value } }
+  if (known && (c.skills || []).some((s) => s.id === known.id)) {
+    c.known = { ...(c.known || {}) };
+    if (known.value) c.known[known.id] = true;
+    else delete c.known[known.id];
   }
   store.saveCareer(c);
   res.json(careerPayload(c, careerCtx()));
@@ -1200,16 +1336,21 @@ app.delete('/api/careers/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Generate the skills graph for a career trajectory (LLM, run as a background job client-side).
+// Generate the career map (LLM, run as a background job client-side).
 app.post(
   '/api/careers/:id/generate',
   wrap(async (req, res) => {
     const c = store.getCareer(req.params.id);
     if (!c) throw httpError(404, 'Career not found');
-    c.skills = await runCareerGraph(c, () => careerSkillsMessages(c.name));
+    const ctx = careerCtx();
+    const { nodes, parsed } = await runCareerGraph(c, () => careerSkillsMessages(c.fromInterest ? '' : c.name, { interest: c.interest || '', knowledge: knowledgeList(ctx) }), ctx);
+    c.skills = nodes;
+    if (c.fromInterest && parsed.career_title) c.name = String(parsed.career_title).trim().slice(0, 80) || c.name;
+    c.fromInterest = false;
+    if (parsed.field) c.field = String(parsed.field).slice(0, 60);
     c.generatedAt = Date.now();
     store.saveCareer(c);
-    res.json(careerPayload(c, careerCtx()));
+    res.json(careerPayload(c, ctx));
   })
 );
 
@@ -1261,7 +1402,8 @@ app.get('/api/careers/:id/resume/markdown', (req, res) => {
   res.json({ markdown: md });
 });
 
-// Upload a job description (file or pasted text) and merge its required skills into the career graph.
+// Add a job description (file or pasted text): merge its skills into the map and
+// remember which skills THIS job asks for, so the UI can compare you with it.
 app.post(
   '/api/careers/:id/jd',
   upload.single('file'),
@@ -1285,10 +1427,17 @@ app.post(
     const jdId = store.id();
     store.saveJdMarkdown(c.id, jdId, markdown);
 
-    c.skills = await runCareerGraph(c, () => careerJdMergeMessages(c.skills, markdown, jdName));
-    c.jds = [...(c.jds || []), { id: jdId, name: jdName.replace(/\.(pdf|md|markdown|txt)$/i, ''), addedAt: Date.now() }];
+    const ctx = careerCtx();
+    const before = new Set((c.skills || []).map((s) => s.id));
+    const { nodes, parsed } = await runCareerGraph(c, () => careerJdMergeMessages(c.skills, markdown, jdName, { knowledge: knowledgeList(ctx) }), ctx);
+    c.skills = nodes;
+    const ids = new Set(nodes.map((n) => n.id));
+    let skillIds = (Array.isArray(parsed.jd_skill_ids) ? parsed.jd_skill_ids : []).map(slugify).filter((id) => ids.has(id));
+    // Older or terse answers: fall back to what this JD added plus the critical skills.
+    if (!skillIds.length) skillIds = nodes.filter((n) => !before.has(n.id) || n.importance === 'critical').map((n) => n.id);
+    c.jds = [...(c.jds || []), { id: jdId, name: jdName.replace(/\.(pdf|md|markdown|txt)$/i, ''), addedAt: Date.now(), skillIds: [...new Set(skillIds)] }];
     store.saveCareer(c);
-    res.json(careerPayload(c, careerCtx()));
+    res.json(careerPayload(c, ctx));
   })
 );
 

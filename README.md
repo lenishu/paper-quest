@@ -14,7 +14,7 @@ Lost the old recovery key? **Developer access** lets an approved Google account 
 
 To bring your local projects online, run `npm run workspace:export` in this folder. In the hosted app, open **Settings → Import local projects** and choose `.netlify/paperquest-projects-backup.json`. Import into an empty workspace. The backup includes projects, original papers, saved lessons and chats, notes, bookmarks, progress and XP; it excludes API keys and career/resume documents. Keep the backup private. Your local files remain unchanged.
 
-Hosted uploads are limited to **4 MB per file**, with **24 MB per workspace**. AI jobs run in the background; cached lessons remain free to reopen. Visitors use their own provider API keys, and provider charges are separate from hosting. Vercel Hobby stops any single task after 5 minutes, so an unusually long AI job can time out; Netlify Free pauses sites when its monthly credits run out. Custom AI endpoints require the site owner to enable their trusted HTTPS origin. See [hosting details](wiki/hosting.md).
+Hosted uploads are limited to **4 MB per file**, with **24 MB per workspace**. AI jobs run in the background; cached lessons remain free to reopen. AI works out of the box: when the site owner sets `PAPERQUEST_SHARED_GEMINI_KEYS`, every account uses those free Gemini keys by default (they stay on the server and rotate when one hits its rate limit). Anyone can add their own key under **🔑 API key**; provider charges are separate from hosting. Vercel Hobby stops any single task after 5 minutes, so an unusually long AI job can time out; Netlify Free pauses sites when its monthly credits run out. Custom AI endpoints require the site owner to enable their trusted HTTPS origin. See [hosting details](wiki/hosting.md).
 
 ## Requirements
 
@@ -41,8 +41,8 @@ For development with hot reload use `npm run dev` and open http://localhost:5173
 
 First steps:
 
-1. Click **⚙️** (top right), add a connection (provider + key), **Test** it, then **Save**. Two ways to fill it in: type into the form, or open **Set up with code** and paste the request snippet from your provider's docs (Python, JavaScript or cURL) — PaperQuest reads the URL, model, key and reasoning setting out of it. This includes the code Google AI Studio gives you. Under each **Model** field, Settings shows which model that connection uses. The same panel shows the exact request PaperQuest will send, in all three languages, ready to copy. You can add several connections — even multiple keys for the same provider — and pick which one is **active**. An optional Semantic Scholar API key (same screen) speeds up the paper reference/citation lookups.
-2. Create a project and drop in a PDF — or click **Try the demo project** first (its first lesson works with no key at all).
+1. Click **🔑 API key** (top right, in the profile menu, or above the quote in the sidebar), add a connection (provider + key), **Test** it, then **Save**. On the hosted app a shared free Gemini key is already active, so this step is optional. Two ways to fill it in: type into the form, or open **Set up with code** and paste the request snippet from your provider's docs (Python, JavaScript or cURL) — PaperQuest reads the URL, model, key and reasoning setting out of it. This includes the code Google AI Studio gives you. Under each **Model** field, Settings shows which model that connection uses. The same panel shows the exact request PaperQuest will send, in all three languages, ready to copy. You can add several connections — even multiple keys for the same provider — and pick which one is **active**. An optional Semantic Scholar API key (same screen) speeds up the paper reference/citation lookups.
+2. Create a project (a research paper, class, course, club, hackathon or your notes) and drop in a PDF, or click **Try the demo project** first: the real *Attention Is All You Need* paper (opened from arXiv), its map, a saved lesson, a summary and a cheatsheet, all without a key. A new workspace starts a short guided tour that walks through all of this; restart it from the profile menu.
 
 ## How it works
 
@@ -57,7 +57,8 @@ First steps:
 - **Reference explorer (🔗 on any paper)** — a ResearchRabbit-style citation map. Three panes: every paper found so far (left), the map itself (centre), and the selected paper with its abstract (right). Papers are placed by **year** (left→right) and **citation count** (bottom→top), with dot size following citations. **Click any paper — on the map or in the list — and PaperQuest pulls in similar work automatically**, growing the network; the buttons under the abstract add its references or the papers citing it on demand. Powered by Semantic Scholar (an external web service, not AI).
 - **Cross-project foundations** — mastery is global. If two projects share `gradient_descent`, mastering it in one pre-unlocks it in the other; project cards show how many concepts they share.
 - **XP & levels** — Novice → Apprentice → Scholar → … Deeper and core concepts award more XP.
-- **Career Path (✧ tab)** — pick one or more career trajectories (or type your own); the AI maps the skills the field requires as a prerequisite graph. Upload a tailored resume per career (openable later) and job descriptions per career (upload a file **or paste the text**); skills you already have — from your resume or anything you mastered in your projects — show green, and the missing critical ones become your suggested next steps with a live match %.
+- **Career Path (✧ tab)** — AI suggests roles from your knowledge graph, or type an interest ("I like robotics and computer vision") or a title; it maps the **tools and skills job postings ask for** (Python, PyTorch, Docker, SQL…), not courses. Each tool links to the concepts it uses, and turns amber once you master them. Upload a tailored resume per career (it shows the critical gaps) and job descriptions (upload a file **or paste the text**) to get a match % for each job. Mark tools you already know; the missing critical ones become your suggested next steps with a live match %.
+- **Study tools** — each project's overview has a one-page **cheatsheet** (formulas, definitions, build-up path, pitfalls), and every paper a **summary** (TL;DR, key ideas, how it works, results). Both are written once by AI and reopen free.
 
 ## Where your data lives
 
@@ -68,7 +69,8 @@ When running locally, everything is in the `data/` folder. Hosted workspaces use
 - `data/projects/<id>/lessons/*.json` — cached lessons & quizzes
 - `data/projects/<id>/lessons/*.chat.json` — the Q&A thread for that lesson
 - `data/mastery.json`, `data/profile.json` — your progress and XP
-- `data/careers/<id>/` — each career: skills graph (`career.json`), its resume (`resume.pdf`/`.md`) and job descriptions (`jds/`)
+- `data/careers/<id>/` — each career: tools & skills map (`career.json`), its resume (`resume.pdf`/`.md`) and job descriptions (`jds/`); `data/careers/suggestions.json` keeps the last AI suggestions
+- `data/projects/<id>/papers/<paperId>.summary.json` and `cheatsheet.json` — saved summaries and cheatsheets; `data/onboarding.json` — guided-tour progress
 
 Back up or delete `data/` to export or reset everything.
 
@@ -91,5 +93,6 @@ Both are static HTML files — just open them in a browser.
 - **OpenRouter** — pick any model from openrouter.ai/models as the model name. Tick **Reasoning tokens** to have the model think before it answers; PaperQuest carries that thinking forward through a lesson's Q&A thread, so follow-ups continue where the last answer left off. If a model rejects reasoning or JSON mode, the request is retried without them.
 - **References slow / rate-limited** — add a Semantic Scholar API key in ⚙️ settings to lift the shared free-tier limit. The first lookup for a paper is the slow one (title search); once it lands it is cached, and clicking around the map afterwards is fast.
 - **Reference explorer says it couldn't match the paper** — the lookup goes by title, so rename the paper to its exact published title and hit ↻ Refresh.
+- **"The shared free Gemini key is busy"** — every shared key hit its free-tier rate limit. Wait a minute, or add your own key under 🔑 API key and set it active.
 - **Malformed JSON from model** — occasionally a model returns a broken graph; just hit analyze again (the 🔁 button on the paper chip). Math that a model writes with single backslashes (Gemini does this) is repaired automatically, so math-heavy lessons no longer fail this way.
 - **Port in use** — set `PORT=3002 npm start`.

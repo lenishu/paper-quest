@@ -146,7 +146,7 @@ export default function LearnModal({ projectId, node, isMastered, onClose, onCom
             </ReactMarkdown>
           </article>
 
-          <div className="quiz">
+          <div className="quiz" data-tour="lesson-quiz">
             <h3 className="quiz-title">🎯 Prove it — {quiz.length} questions, {Math.ceil(quiz.length * 0.75)} to pass</h3>
             {quiz.map((q, qi) => {
               const chosen = answers[qi];

@@ -10,6 +10,9 @@
   trigger button)
 - `completions[projectId]` — counter bumped when a job finishes; ProjectView
   watches it to refetch
+- `startDoc('summary'|'cheatsheet', {projectId, paperId?, regenerate?, name})` /
+  `docState(key)` — summary and cheatsheet jobs (key `summary:pid:paperId` or
+  `cheatsheet:pid`); status `writing` → `ready`/`error`, bumps the project on done
 - `JobsIndicator` — the progress dock (bottom), per-job card with dismiss
 **Rule:** never call the lesson/analyze endpoints with a bare fetch from a
 component; enqueue a job so progress + failure UX stay consistent.
@@ -53,6 +56,17 @@ the client is built to make that visible, so nobody pays twice:
 LearnModal opens when `lessonState` says ready. Quests (`#quest-card` on
 Dashboard) and streaks recompute server-side from events (`/api/quests`,
 `computeQuestState`).
+
+## Study tools — summaries & cheatsheets (StudyDocs.jsx)
+`StudyDocModal` shows a paper's summary (`paper` prop) or the project cheatsheet.
+It GETs the saved copy (`/projects/:id/papers/:paperId/summary`,
+`/projects/:id/cheatsheet`); 404 → "Write … with AI" → `startDoc` (background
+job, the modal can close); **Regenerate** confirms first; ⬇ .md downloads it.
+`MarkdownDoc` (same file) is the shared markdown+KaTeX renderer (also used by the
+judge view). Entry points: PapersView "✦ Summary" per paper; the Overview
+**Study tools** card (Cheatsheet ready/new, summaries count, next quiz,
+`data-tour="study-tools"`); ProjectView owns the `doc` state. The demo project
+ships a prepared summary + cheatsheet (`demo: true`, no key used).
 
 ## Per-concept notes (user's own notes)
 `NodePanel` has a `NotesEditor` (📝 My notes) — a textarea that saves on blur

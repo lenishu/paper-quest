@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import Overview from './Overview';
 import MapView from './MapView';
@@ -6,6 +6,7 @@ import PapersView from './PapersView';
 import HistoryView from './HistoryView';
 import LearnModal from './LearnModal';
 import PaperReader from './PaperReader';
+import StudyDocModal from './StudyDocs';
 import { Confetti, Spinner, useToast } from './bits';
 import { useJobs } from '../jobs';
 
@@ -16,6 +17,7 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
   const [confetti, setConfetti] = useState(false);
   const [reader, setReader] = useState(null); // paper being read
   const [drawer, setDrawer] = useState(false);
+  const [doc, setDoc] = useState(null); // { paper } = its summary, {} = the project cheatsheet
   const toast = useToast();
   const { completions } = useJobs();
 
@@ -23,8 +25,11 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (initialSel) { setSel(initialSel); } }, [initialSel]);
   useEffect(() => { if (openReaderSignal) setDrawer(true); }, [openReaderSignal]);
+  // The tour opens the saved refresher itself, and closes it again when it moves on.
+  const tourOpened = useRef(false);
   useEffect(() => {
-    if (tourRefresher && data?.project.id === id) setLearn(data.project.nodes.find(n => n.id === 'linear_algebra'));
+    if (tourRefresher && data?.project.id === id) { setLearn(data.project.nodes.find(n => n.id === 'linear_algebra')); tourOpened.current = true; }
+    else if (!tourRefresher && tourOpened.current) { setLearn(null); tourOpened.current = false; }
   }, [tourRefresher, data?.project.id, id]);
 
   const doneCount = completions[id] || 0;
@@ -86,8 +91,9 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
   return (
     <div className="project-shell">
       {tab === 'overview' && (
-        <Overview id={id} project={project} states={states} mastery={mastery} notes={data.notes || {}} lessons={data.lessons || {}}
-          onOpenConcept={openConcept} onOpenLesson={(n) => setLearn(n)} onOpenSettings={openSettings} onGotoMap={() => onTab('papers')} />
+        <Overview id={id} project={project} states={states} mastery={mastery} notes={data.notes || {}} lessons={data.lessons || {}} cheatsheetAt={data.cheatsheetAt}
+          onOpenConcept={openConcept} onOpenLesson={(n) => setLearn(n)} onOpenSettings={openSettings} onGotoMap={() => onTab('papers')}
+          onOpenCheatsheet={() => setDoc({})} onOpenSummaries={() => onTab('papers')} />
       )}
       {tab === 'map' && (
         <MapView id={id} project={project} states={states} mastery={mastery} sharedWith={sharedWith} lessons={data.lessons || {}}
@@ -96,7 +102,7 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
           bookmarks={bookmarks} onToggleBookmark={toggleBookmark}
           notes={data.notes || {}} onSaveNote={saveNote} />
       )}
-      {tab === 'papers' && <PapersView id={id} project={project} onReload={load} refreshProjects={refreshProjects} onRead={openReader} />}
+      {tab === 'papers' && <PapersView id={id} project={project} onReload={load} refreshProjects={refreshProjects} onRead={openReader} onSummary={(p) => setDoc({ paper: p })} />}
       {tab === 'history' && <HistoryView id={id} canUndo={data.canUndo} onReload={load} />}
 
       {/* left-edge "take out a paper to read" */}
@@ -119,6 +125,7 @@ export default function ProjectView({ id, tab, onTab, initialSel, onOpenConcept,
       )}
 
       {reader && <PaperReader id={id} paper={reader} onClose={() => { setReader(null); load(); }} />}
+      {doc && <StudyDocModal projectId={id} projectName={project.name} paper={doc.paper} openSettings={openSettings} onClose={() => { setDoc(null); load(); }} />}
 
       {learn && (
         <LearnModal projectId={id} node={learn} isMastered={!!mastery[learn.id]}

@@ -22,13 +22,16 @@ server/            Node + Express API (no build step)
   llm.js           provider adapter: OpenAI(-compatible) / OpenRouter / Anthropic / Gemini (global fetch)
   pdfToMd.js       PDF→Markdown: docling (default, Python) → pdf.js fallback
   references.js    Semantic Scholar reference/citation lookup (needs internet)
-  demo.js          hard-coded demo project (works with no API key)
+  demo.js          demo project: the real Attention Is All You Need (arXiv PDF), map, lesson, summary, cheatsheet; tour career tool maps
+  onboarding.js    guided-tour state + sample project/career (no AI)
+  sharing.js       judge access: read-only showcase snapshot
   cloud.js         hosted mode: encrypted per-workspace snapshots, background jobs (Vercel and Netlify)
   pgStore.js       Postgres store for hosted mode on Vercel (Neon); same calls as Netlify Blobs
 api/index.mjs      Vercel function: all /api routes -> cloud.js (vercel.json: build, rewrites, headers)
 client/src/
   main.jsx → App.jsx   shell: TopBar + Sidebar + views (Dashboard/ProjectsView/ExploreView/PathsView/ProjectView)
-  components/          one concern each (BrainMap/Galaxy3D = galaxy, SkillTreeCanvas = map, LearnModal = lesson+quiz, CareerView = career path, PaperReader, NodePanel, etc.)
+  components/          one concern each (BrainMap/Galaxy3D = galaxy, SkillTreeCanvas = map, LearnModal = lesson+quiz, CareerView = career path, PaperReader, NodePanel, GuidedTour = spotlight tour, NewProjectModal, StudyDocs = summary/cheatsheet, JudgeView = judge showcase, etc.)
+  projectKinds.js     project kinds (paper, class, course, club, hackathon, notes) and their wording
   graphLayout.js      tierOf/TIER_LABELS/branchColor + 2D layout
   jobs.jsx            background job queue (upload+analyze, lesson) with progress dock + failure step-up
   styles.css          design system tokens (see DESIGN_SYSTEM.md) + all styles
@@ -40,7 +43,8 @@ data/                 (gitignored) settings.json, mastery.json, profile.json, bo
 Project → { papers[] (.md + optional raw pdf), nodes[] (concept DAG) }. Node: `{id, name, level(0=baseline), core, tier, branch, blurb, prereqs[], usage{paperId:text}, sources[], depth}`. Mastery + XP are **global** (cross-project) in `data/mastery.json` / `profile.json`.
 
 ## API surface (all under /api)
-health, settings(+/test), profile, projects (CRUD, /demo), projects/:id (states+mastery+bookmarks), papers (upload, analyze, markdown, pdf, notes, delete), lesson (POST /lesson), complete, bookmarks(+toggle), memory (GET/PUT), history, events (POST), undo, export.txt, brain, dashboard, overview, quests/quest-claim, careers (CRUD + /generate + /resume + /jd — see wiki/career.md).
+health, settings(+/test), profile, onboarding, projects (CRUD with kind, /demo), projects/:id (states+mastery+bookmarks), papers (upload, analyze, markdown, pdf, notes, summary, delete), cheatsheet, lesson (POST /lesson), complete, bookmarks(+toggle), memory (GET/PUT), history, events (POST), undo, export.txt, brain, dashboard, overview, quests/quest-claim, careers (CRUD + /suggest + /generate + /resume + /jd — see wiki/career.md).
+Hosted: `PAPERQUEST_SHARED_GEMINI_KEYS` gives every workspace a shared, server-held Gemini key pool as its default AI connection (see wiki/server/storage.md).
 
 ## Conventions & gotchas (important)
 - **Editing files here:** the file tools (Edit/Write) truncate large writes to this Windows mount. For anything sizeable, write via `bash` heredoc (`cat > file <<'EOF'`) and verify with `node --check` (server) or esbuild (client). Small edits: prefer `node -e` fs string-replace, then verify.

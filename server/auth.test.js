@@ -357,6 +357,7 @@ test('judge keys share only graphs, isolate the workspace, and enforce rotation,
   const files = cloud.unseal(await blobs.get(path), token);
   files['settings.json'] = entry({ apiKey: 'provider-secret' });
   files['projects/' + demo.projectId + '/notes.json'] = entry({ personal: 'private-notes' });
+  files['projects/' + demo.projectId + '/lessons/linear_algebra.chat.json'] = entry([{ raw: 'private-chat-thread' }]);
   const pfile = 'projects/' + demo.projectId + '/project.json';
   const p = JSON.parse(Buffer.from(files[pfile].data, 'base64'));
   p.privateField = 'private-project-field'; p.nodes[0].internal = 'private-node-field';
@@ -377,7 +378,16 @@ test('judge keys share only graphs, isolate the workspace, and enforce rotation,
   const shared = await opened.json(), text = JSON.stringify(shared);
   assert.equal(shared.projects.length, 1); assert.equal(shared.careers.length, 1);
   assert.ok(shared.projects[0].nodes.length > 5);
-  for (const hidden of [token, 'provider-secret', 'private-notes', 'private-project-field', 'private-node-field', 'private-resume', 'DEMO_PAPER_MD']) assert.ok(!text.includes(hidden), hidden);
+  for (const hidden of [token, 'provider-secret', 'private-notes', 'private-chat-thread', 'private-project-field', 'private-node-field', 'private-resume', 'DEMO_PAPER_MD']) assert.ok(!text.includes(hidden), hidden);
+  // The showcase: saved refreshers with quizzes, the cheatsheet, summaries, dashboard numbers and career stats.
+  const proj = shared.projects[0];
+  assert.equal(proj.lessons.linear_algebra.quiz.length, 4);
+  assert.match(proj.cheatsheet, /## Core formulas/);
+  assert.match(proj.papers[0].summary, /## TL;DR/);
+  assert.equal(proj.papers[0].pdfUrl, 'https://arxiv.org/pdf/1706.03762v7');
+  assert.equal(shared.dashboard.stats.projects, 1);
+  assert.equal(shared.dashboard.heat.length, 70);
+  assert.ok(shared.careers[0].stats.total > 0);
   assert.equal((await judge.call('/projects')).status, 401);
   await judge.call('/session');
   assert.deepEqual(await (await judge.call('/projects')).json(), []);
@@ -398,35 +408,50 @@ test('judge keys share only graphs, isolate the workspace, and enforce rotation,
   assert.equal((await (await owner.call('/developer/judge-access')).json()).active, false);
 });
 
-test('guided tour persists, creates one sample map and cached refresher, and builds a connected career without AI', async () => {
+test('guided tour persists, builds the real-paper demo and a tools-based career without AI', async () => {
   const blobs = new MemoryBlobs(), client = browser(blobs), other = browser(blobs);
   await client.call('/session'); await other.call('/session');
-  assert.equal((await (await client.call('/onboarding')).json()).eligible, true);
+  const start = await (await client.call('/onboarding')).json();
+  assert.equal(start.eligible, true); assert.equal(start.total, 12);
   const add = async () => (await client.call('/onboarding', 'POST', { action: 'project' })).json();
   const sample = await add(); assert.equal((await add()).projectId, sample.projectId);
+  assert.equal(sample.step, 4);
   assert.equal((await (await client.call('/projects')).json()).length, 1);
   const project = await (await client.call('/projects/' + sample.projectId)).json();
   assert.ok(project.project.nodes.length > 5);
+  assert.ok(project.cheatsheetAt > 0);
+  const paper = project.project.papers[0];
+  assert.equal(paper.pdfUrl, 'https://arxiv.org/pdf/1706.03762v7');
+  assert.ok(Object.values(project.project.nodes.find(n => n.id === 'softmax_function').usage)[0].includes('softmax'));
+  const summary = await client.call(`/projects/${sample.projectId}/papers/${paper.id}/summary`);
+  assert.equal(summary.status, 200); assert.match((await summary.json()).markdown, /## TL;DR/);
   const lesson = await client.call('/projects/' + sample.projectId + '/lesson', 'POST', { conceptId: 'linear_algebra' });
   assert.equal(lesson.status, 200, await lesson.clone().text());
   assert.equal((await lesson.json()).cached, true);
-  for (const step of [2, 3]) assert.equal((await client.call('/onboarding', 'POST', { action: 'step', step })).status, 200);
+  for (const step of [5, 6, 7, 8]) assert.equal((await client.call('/onboarding', 'POST', { action: 'step', step })).status, 200);
   const career = await (await client.call('/onboarding', 'POST', { action: 'career', name: 'Data Scientist' })).json();
-  const stored = cloud.unseal(await blobs.get(cloud.namespace(client.cookies.get('__Host-paperquest')) + '/workspace'), client.cookies.get('__Host-paperquest'));
-  const skills = JSON.parse(Buffer.from(stored['careers/' + career.careerId + '/career.json'].data, 'base64')).skills;
-  assert.ok(skills.some(n => n.depth > 0));
-  const ids = new Set(skills.map(n => n.id));
-  assert.ok(skills.every(n => n.prereqs.every(id => ids.has(id))));
-  await client.call('/onboarding', 'POST', { action: 'step', step: 5 });
+  assert.equal(career.step, 9);
+  const detail = await (await client.call('/careers/' + career.careerId)).json();
+  const ids = new Set(detail.skills.map(n => n.id));
+  for (const tool of ['python', 'sql', 'scikit_learn', 'ab_testing']) assert.ok(ids.has(tool), tool);
+  assert.ok(!ids.has('linear_algebra'), 'career maps list tools, not courses');
+  assert.ok(detail.skills.some(n => n.depth > 0));
+  assert.ok(detail.skills.every(n => n.prereqs.every(id => ids.has(id))));
+  assert.ok(detail.skills.find(n => n.id === 'scikit_learn').concepts.includes('gradient_descent'));
+  assert.equal(detail.knowledge.gradient_descent.name, 'Gradient Descent');
+  assert.equal(detail.states.python, 'tolearn'); // foundation tools are not assumed
+  await client.call('/onboarding', 'POST', { action: 'step', step: 12 });
   assert.equal((await (await client.call('/onboarding')).json()).completed, true);
   assert.equal((await (await other.call('/onboarding')).json()).step, 0);
   await client.call('/onboarding', 'POST', { action: 'restart' });
   assert.equal((await add()).projectId, sample.projectId);
   const again = await (await client.call('/onboarding', 'POST', { action: 'career', name: 'AI / Machine Learning Engineer' })).json();
   assert.equal(again.careerId, career.careerId);
+  assert.ok((await (await client.call('/careers/' + again.careerId)).json()).skills.some(n => n.id === 'pytorch'));
   await client.call('/onboarding', 'POST', { action: 'dismiss' });
   assert.equal((await (await client.call('/onboarding')).json()).dismissed, true);
   assert.equal((await client.call('/onboarding', 'POST', { action: 'career', name: 'Unknown' })).status, 400);
+  assert.equal((await client.call('/onboarding', 'POST', { action: 'step', step: 13 })).status, 400);
 });
 
 test('automatic developer restoration adds missing folders once and preserves newer progress and edits', async () => {

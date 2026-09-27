@@ -11,6 +11,7 @@ const STATUS = {
   preparing: 'Preparing lesson…',
   extracting: 'Reading resume…',
   mapping: 'Mapping skills…',
+  writing: 'Writing with AI…',
   done: 'Done',
   error: 'Failed'
 };
@@ -23,6 +24,7 @@ export function JobsProvider({ children }) {
   const [completions, setCompletions] = useState({}); // projectId -> counter
   const [lessons, setLessons] = useState({}); // 'pid:cid' -> {status, error}
   const [careersVersion, setCareersVersion] = useState(0); // bumped when any career job settles
+  const [docs, setDocs] = useState({}); // 'summary:pid:paperId' | 'cheatsheet:pid' -> {status, error}
   const queueRef = useRef([]);
   const runningRef = useRef(false);
 
@@ -30,6 +32,7 @@ export function JobsProvider({ children }) {
   const bump = useCallback((pid) => setCompletions((c) => ({ ...c, [pid]: (c[pid] || 0) + 1 })), []);
   const bumpCareers = useCallback(() => setCareersVersion((v) => v + 1), []);
   const setLesson = useCallback((pid, cid, v) => setLessons((m) => ({ ...m, [lkey(pid, cid)]: v })), []);
+  const setDoc = useCallback((key, v) => setDocs((m) => ({ ...m, [key]: v })), []);
 
   const pump = useCallback(async () => {
     if (runningRef.current) return;
@@ -82,15 +85,26 @@ export function JobsProvider({ children }) {
           patch(job.id, { status: 'done' });
           bumpCareers();
           setTimeout(() => setJobs((js) => js.filter((j) => j.id !== job.id)), 2500);
-        }      } catch (e) {
+        } else if (job.kind === 'summary' || job.kind === 'cheatsheet') {
+          patch(job.id, { status: 'writing' });
+          setDoc(job.docKey, { status: 'writing' });
+          const path = job.kind === 'summary' ? `/projects/${job.projectId}/papers/${job.paperId}/summary` : `/projects/${job.projectId}/cheatsheet`;
+          await api(path, { method: 'POST', body: { regenerate: !!job.regenerate } });
+          patch(job.id, { status: 'done' });
+          setDoc(job.docKey, { status: 'ready' });
+          bump(job.projectId);
+          setTimeout(() => setJobs((js) => js.filter((j) => j.id !== job.id)), 2500);
+        }
+      } catch (e) {
         patch(job.id, { status: 'error', error: e.message });
+        if (job.docKey) setDoc(job.docKey, { status: 'error', error: e.message });
         if (job.kind === 'lesson') setLesson(job.projectId, job.conceptId, { status: 'error', error: e.message });
         if (job.kind === 'upload') bump(job.projectId);
         if (String(job.kind).startsWith('career')) bumpCareers();
       }
     }
     runningRef.current = false;
-  }, [patch, bump, bumpCareers, setLesson]);
+  }, [patch, bump, bumpCareers, setLesson, setDoc]);
 
   const enqueue = useCallback(
     (projectId, files) => {
@@ -126,12 +140,26 @@ export function JobsProvider({ children }) {
     [pump]
   );
 
+  // Summaries (per paper) and cheatsheets (per project): written once by AI, then saved.
+  const startDoc = useCallback(
+    (kind, { projectId, paperId, name, regenerate }) => {
+      const docKey = kind === 'summary' ? `summary:${projectId}:${paperId}` : `cheatsheet:${projectId}`;
+      const nj = { id: ++seq, kind, projectId, paperId, docKey, regenerate, name, status: 'queued' };
+      setJobs((js) => [...js.filter((j) => !(j.docKey === docKey && j.status === 'error')), nj]);
+      setDoc(docKey, { status: 'writing' });
+      queueRef.current.push(nj);
+      pump();
+    },
+    [pump, setDoc]
+  );
+  const docState = useCallback((key) => docs[key] || null, [docs]);
+
   const lessonState = useCallback((pid, cid) => lessons[lkey(pid, cid)] || null, [lessons]);
   const clearLesson = useCallback((pid, cid) => setLessons((m) => { const n = { ...m }; delete n[lkey(pid, cid)]; return n; }), []);
   const dismiss = useCallback((jid) => setJobs((js) => js.filter((j) => j.id !== jid)), []);
 
   return (
-    <JobsCtx.Provider value={{ jobs, enqueue, startLesson, lessonState, clearLesson, completions, dismiss, careersVersion, startCareerJob }}>
+    <JobsCtx.Provider value={{ jobs, enqueue, startLesson, lessonState, clearLesson, completions, dismiss, careersVersion, startCareerJob, startDoc, docState }}>
       {children}
       <JobsIndicator jobs={jobs} onDismiss={dismiss} />
     </JobsCtx.Provider>

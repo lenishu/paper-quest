@@ -40,7 +40,21 @@ function writeJSON(file, obj) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(tmp, file);
+  renameWithRetry(tmp, file);
+}
+
+// On Windows, antivirus and the search indexer briefly lock a file that was just
+// written, so renaming over it can fail with EPERM/EBUSY/EACCES. Retry for up to
+// ~1.5 s (as graceful-fs does) instead of failing the save.
+function renameWithRetry(from, to) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return fs.renameSync(from, to);
+    } catch (e) {
+      if (process.platform !== 'win32' || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code) || attempt >= 20) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(10 * (attempt + 1), 100));
+    }
+  }
 }
 
 function appendLine(file, obj) {
@@ -120,20 +134,43 @@ function migrateSettings(raw) {
   return { connections, activeId: active ? active.id : null, s2Key: String(s.s2Key || '') };
 }
 
+// Shared Gemini keys held by the server (PAPERQUEST_SHARED_GEMINI_KEYS, comma or
+// whitespace separated). They never reach a browser or a workspace file: settings
+// expose a keyless virtual connection and llm.js cycles through the pool.
+const SHARED_ID = 'shared-gemini';
+function sharedGeminiKeys() {
+  return [...new Set(String(process.env.PAPERQUEST_SHARED_GEMINI_KEYS || '').split(/[\s,;]+/).map((k) => k.trim()).filter(Boolean))];
+}
+function sharedConnection() {
+  if (!sharedGeminiKeys().length) return null;
+  return { id: SHARED_ID, provider: 'gemini', label: 'Shared Gemini (free)', key: '', model: '', baseUrl: '', reasoning: false, reasoningEffort: '', shared: true };
+}
+
 function getSettings() {
-  return migrateSettings(readJSON(SETTINGS_FILE(), null));
+  const raw = readJSON(SETTINGS_FILE(), null);
+  const s = migrateSettings(raw);
+  const shared = sharedConnection();
+  if (!shared) return s;
+  // A new workspace starts on the shared key; the placeholder empty connection is dropped.
+  const own = raw ? s.connections.filter((c) => c.id !== SHARED_ID) : [];
+  const picked = own.find((c) => c.id === raw?.activeId);
+  // The shared key stays the default until the user activates a connection that has a key.
+  const activeId = picked && picked.key.trim() ? picked.id : SHARED_ID;
+  return { connections: [shared, ...own], activeId, s2Key: s.s2Key };
 }
 
 function saveSettings(patch) {
   const cur = getSettings();
   const p = patch || {};
-  const connections = Array.isArray(p.connections) ? p.connections.map(sanitizeConnection) : cur.connections;
+  const shared = sharedConnection();
+  const own = (Array.isArray(p.connections) ? p.connections : cur.connections)
+    .filter((c) => c && !c.shared && c.id !== SHARED_ID)
+    .map(sanitizeConnection);
   let activeId = p.activeId !== undefined ? p.activeId : cur.activeId;
-  if (!connections.some((c) => c.id === activeId)) activeId = (connections[0] || {}).id || null;
+  if (!(shared && activeId === SHARED_ID) && !own.some((c) => c.id === activeId)) activeId = shared ? SHARED_ID : (own[0] || {}).id || null;
   const s2Key = p.s2Key !== undefined ? String(p.s2Key || '') : cur.s2Key;
-  const next = { connections, activeId, s2Key };
-  writeJSON(SETTINGS_FILE(), next);
-  return next;
+  writeJSON(SETTINGS_FILE(), { connections: own, activeId, s2Key });
+  return getSettings();
 }
 
 function activeConnection(settings) {
@@ -187,6 +224,7 @@ function migrate(p) {
   if (!p.schemaVersion) p.schemaVersion = SCHEMA_VERSION;
   if (!Array.isArray(p.papers)) p.papers = [];
   if (!Array.isArray(p.nodes)) p.nodes = [];
+  p.kind = projectKind(p.kind);
   for (const n of p.nodes) {
     n.name = fixMojibake(n.name);
     n.blurb = fixMojibake(n.blurb);
@@ -212,11 +250,17 @@ function saveProject(p) {
   return p;
 }
 
-function createProject(name) {
+// What a project holds. Every kind grows the same concept map; the kind tunes wording
+// in the UI and tells the analysis prompt what sort of material it is reading.
+const PROJECT_KINDS = ['paper', 'class', 'course', 'club', 'hackathon', 'notes'];
+const projectKind = (kind) => (PROJECT_KINDS.includes(kind) ? kind : 'paper');
+
+function createProject(name, kind) {
   const p = {
     id: id(),
     schemaVersion: SCHEMA_VERSION,
     name: (name || 'Untitled project').trim().slice(0, 80),
+    kind: projectKind(kind),
     createdAt: Date.now(),
     papers: [],
     nodes: []
@@ -255,6 +299,13 @@ function deletePaperFiles(pid, paperId) {
     if (f.startsWith(paperId + '.')) fs.rmSync(path.join(dir, f), { force: true });
   }
 }
+
+// AI summaries sit next to the paper (papers/<paperId>.summary.json), so deleting the
+// paper removes them; the project cheatsheet is one file per project.
+function readPaperSummary(pid, paperId) { return readJSON(path.join(papersDir(pid), segment(paperId) + '.summary.json'), null); }
+function savePaperSummary(pid, paperId, summary) { writeJSON(path.join(papersDir(pid), segment(paperId) + '.summary.json'), summary); }
+function readCheatsheet(pid) { return readJSON(path.join(projectDir(pid), 'cheatsheet.json'), null); }
+function saveCheatsheet(pid, sheet) { writeJSON(path.join(projectDir(pid), 'cheatsheet.json'), sheet); }
 
 function readLesson(pid, conceptId) { return readJSON(path.join(lessonsDir(pid), segment(conceptId) + '.json'), null); }
 function saveLesson(pid, conceptId, lesson) { writeJSON(path.join(lessonsDir(pid), segment(conceptId) + '.json'), lesson); }
@@ -374,6 +425,15 @@ function createCareer(name) {
   return saveCareer(c);
 }
 
+// Guided-tour progress for this workspace.
+const ONBOARDING_FILE = () => path.join(dataDir(), 'onboarding.json');
+function getOnboarding() { return readJSON(ONBOARDING_FILE(), { step: 0, dismissed: false, completed: false }); }
+function saveOnboarding(state) { writeJSON(ONBOARDING_FILE(), state); return state; }
+
+// Last AI career suggestions (a file, so listCareers never mistakes it for a career).
+function readCareerSuggestions() { return readJSON(path.join(careersDir(), 'suggestions.json'), null); }
+function saveCareerSuggestions(value) { writeJSON(path.join(careersDir(), 'suggestions.json'), value); }
+
 function deleteCareer(cid) {
   fs.rmSync(careerDir(cid), { recursive: true, force: true });
 }
@@ -404,13 +464,16 @@ function saveJdMarkdown(cid, jdId, markdown) {
 }
 
 module.exports = {
-  listCareers, getCareer, saveCareer, createCareer, deleteCareer,
+  listCareers, getCareer, saveCareer, createCareer, deleteCareer, readCareerSuggestions, saveCareerSuggestions,
+  getOnboarding, saveOnboarding,
   saveCareerResumeFiles, readCareerResumeMarkdown, careerResumeRawPath, saveJdMarkdown,
   init, id, SCHEMA_VERSION, DEFAULT_MODELS, PROVIDERS, providerMeta,
-  getSettings, saveSettings, activeModel, activeConnection,
+  getSettings, saveSettings, activeModel, activeConnection, sharedGeminiKeys, SHARED_ID,
   getProfile, saveProfile, getMastery, saveMastery,
   listProjects, getProject, saveProject, createProject, deleteProject,
+  PROJECT_KINDS, projectKind,
   savePaperFiles, readPaperMarkdown, deletePaperFiles, readLesson, saveLesson,
+  readPaperSummary, savePaperSummary, readCheatsheet, saveCheatsheet,
   readLessonChat, saveLessonChat, clearLessonChat, listLessons,
   logEvent, readEvents, logAudit, readAudit,
   saveNodesSnapshot, readNodesSnapshot, readMemory, writeMemory,

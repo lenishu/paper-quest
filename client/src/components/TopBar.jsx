@@ -15,7 +15,8 @@ const EV = {
   paper_added: ['📄', 'Uploaded paper'], paper_removed: ['🗑', 'Removed paper'], paper_analyzed: ['🧠', 'Mapped paper'],
   lesson_generated: ['📖', 'Opened lesson'], concept_mastered: ['✅', 'Mastered'], concept_skipped: ['⏭', 'Marked known'],
   concept_viewed: ['👁', 'Reviewed'], concept_bookmarked: ['♥', 'Bookmarked'], project_created: ['🌱', 'New project'],
-  analysis_undone: ['↩', 'Undid analysis'], memory_edited: ['🧠', 'Edited memory'], lesson_question: ['💬', 'Asked a question']
+  analysis_undone: ['↩', 'Undid analysis'], memory_edited: ['🧠', 'Edited memory'], lesson_question: ['💬', 'Asked a question'],
+  paper_summarized: ['✦', 'Summarized'], cheatsheet_generated: ['📝', 'Wrote cheatsheet']
 };
 const ago = (t) => { const s = (Date.now() - t) / 1000; if (s < 3600) return Math.max(1, Math.floor(s / 60)) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'; };
 
@@ -27,7 +28,7 @@ function useOutsideClose(ref, onClose) {
   }, [ref, onClose]);
 }
 
-export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenConcept, onOpenProject, onRenameProject, onSettings, onAccount, onTour, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
+export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenConcept, onOpenProject, onRenameProject, onSettings, onApiKey, onAccount, onTour, onShowBadges, onShowBookmarks, onShowAbout, onShowHelp }) {
   const [q, setQ] = useState('');
   const [account, setAccount] = useState(null);
   useEffect(() => { if (isCloud) openSession().then(s => setAccount(s.account)).catch(() => {}); }, []);
@@ -169,8 +170,12 @@ export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenC
           )}
         </div>
 
+        <button className="tb-apikey" data-tour="api-key-top" title={dash?.ai?.ready ? `AI: ${dash.ai.label}` : 'Add an API key to use AI'} onClick={onApiKey}>
+          🔑<span className="tb-apikey-label"> API key</span>
+        </button>
+
         <div className="tb-profile" ref={menuRef}>
-          <button className="tb-prof-btn" aria-label="Account menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+          <button className="tb-prof-btn" data-tour="profile-menu" aria-label="Account menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
             <span className="tb-avatar">{account?.name?.[0] || 'L'}</span>
             <span className="tb-prof-text">
               <span className="tb-prof-name">{isCloud ? account?.name || 'Sign in' : 'Lenish'}</span>
@@ -182,6 +187,7 @@ export default function TopBar({ view, onNav, project, tab, onTab, dash, onOpenC
             <div className="tb-menu tb-prof-menu">
               {isCloud && <button onClick={() => { setMenuOpen(false); onAccount(); }}>{account ? (account.developer ? 'Developer access & account' : 'Your account') : 'Sign up / sign in with Google'}</button>}
               {isCloud && account && <button onClick={() => switchAccount().catch(e => window.alert(e.message))}>Switch Google account</button>}
+              <button onClick={() => { setMenuOpen(false); onApiKey(); }}>🔑 API key{dash?.ai?.ready ? <span className="tb-menu-note"> · {dash.ai.label}</span> : null}</button>
               <button onClick={() => { setMenuOpen(false); onTour(); }}>Start guided tour</button>
               {isCloud && <a className="judge-menu-link" href="/?judge=1">Enter judge access key</a>}
               <button onClick={() => { setMenuOpen(false); onSettings(); }}>⚙ Settings</button>

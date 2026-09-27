@@ -1,7 +1,10 @@
 # server/store.js — storage layer
 
 File-based storage under `data/` (gitignored). **Every** JSON write must go
-through `writeJSON` — it is atomic (temp file + fsync + rename). Non-atomic
+through `writeJSON` — it is atomic (temp file + fsync + rename). On Windows the
+rename retries for up to ~1.5 s on EPERM/EBUSY/EACCES (`renameWithRetry`):
+antivirus and the indexer briefly lock just-written files, which used to fail
+saves and tests intermittently. Non-atomic
 writes corrupted `project.json` in the past; never reintroduce them.
 `readJSON` tolerates trailing garbage from historic corruption.
 
@@ -17,9 +20,13 @@ data/
   mastery.json      GLOBAL mastered concept ids (cross-project)
   profile.json      GLOBAL XP / level / streak
   bookmarks.json    GLOBAL bookmarks
+  onboarding.json   guided-tour progress { step, dismissed, completed, projectId, careerId }
   projects/<id>/
-    project.json    { papers[], nodes[] } — the core document
+    project.json    { kind, papers[], nodes[] } — the core document (kind: paper |
+                    class | course | club | hackathon | notes; old projects read as paper)
     papers/*.md     converted markdown (+ optional raw .pdf kept for reader)
+    papers/<id>.summary.json   saved AI summary { markdown, generatedAt }
+    cheatsheet.json saved AI cheatsheet { markdown, generatedAt, concepts }
     lessons/<conceptId>.json        cached lessons
     lessons/<conceptId>.chat.json   follow-up Q&A thread for that lesson (separate
                                     file so regenerating the lesson keeps it)
@@ -29,6 +36,7 @@ data/
     notes.json      { nodeId: { text, updatedAt } } — user's own notes per concept
     nodes.prev.json snapshot before last analyze — powers POST /undo
   careers/<id>/       career-path feature: career.json + per-career resume.md/.pdf + jds/ (see wiki/career.md)
+  careers/suggestions.json   last AI career suggestions
 ```
 
 ## Exports (grouped)
@@ -40,6 +48,9 @@ data/
   `listProjects` and `listCareers` skip folders whose names are not valid ids
   (such as an editor's hidden `.obsidian`), so one stray folder can't fail the
   whole list with "Invalid identifier".
+- kinds: `PROJECT_KINDS`, `projectKind(kind)` (unknown → paper); `createProject(name, kind)`
+- study docs: `readPaperSummary/savePaperSummary`, `readCheatsheet/saveCheatsheet`
+- tour & careers: `getOnboarding/saveOnboarding`, `readCareerSuggestions/saveCareerSuggestions`
 - papers/lessons: `savePaperFiles/readPaperMarkdown/deletePaperFiles/paperRawPath`,
   `readLesson/saveLesson`, `listLessons(pid)` → `{conceptId: mtimeMs}` (stat-only,
   powers the "saved" UI), `readLessonChat/saveLessonChat/clearLessonChat`
@@ -63,6 +74,14 @@ on providers that accept a reasoning block; `kind` drives llm.js dispatch. **Bac
 `{provider, keys{}, models{}}` shape to connections on read (persisted on next
 save), so old `settings.json` files keep working. `sanitizeConnection` preserves
 client-provided ids so the Settings UI can save-then-test a specific connection.
+
+**Shared key:** when `PAPERQUEST_SHARED_GEMINI_KEYS` is set (`sharedGeminiKeys()`),
+`getSettings` puts a keyless virtual connection `{ id: 'shared-gemini', shared:
+true, provider: 'gemini' }` first. It is active for a new workspace and stays
+active until the user activates one of their own connections **that has a key**.
+`saveSettings` never stores it (it strips `shared`/`shared-gemini` entries) but
+keeps `activeId: 'shared-gemini'`. The keys themselves live only in the server
+environment; llm.js cycles through them.
 
 ## Node shape (the data model's core)
 `{ id, name, level (0=baseline), core, tier (novice|intermediate|advanced),

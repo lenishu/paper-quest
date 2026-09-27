@@ -12,7 +12,9 @@ export default function PaperReader({ id, paper, onClose }) {
   const [md, setMd] = useState(null);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
-  const isPdf = (paper.pages || 0) > 0;
+  // The demo paper is the official PDF on arXiv (its licence doesn't let us re-host it).
+  const isPdf = (paper.pages || 0) > 0 || !!paper.pdfUrl;
+  const pdfSrc = paper.pdfUrl || downloadUrl(`/projects/${id}/papers/${paper.id}/pdf`);
 
   useEffect(() => {
     if (!isPdf) {
@@ -34,14 +36,15 @@ export default function PaperReader({ id, paper, onClose }) {
         <div className="reader-head">
           <div className="reader-title"><span className={`ftype ${isPdf ? 'ftype-pdf' : 'ftype-txt'}`}>{isPdf ? 'PDF' : 'TEXT / MD'}</span> {paper.title || paper.name}</div>
           <div className="reader-head-right">
-            <a className="btn btn-ghost small-btn" href={downloadUrl(`/projects/${id}/papers/${paper.id}/markdown`)}>⬇ Markdown</a>
+            {paper.pdfUrl && <a className="btn btn-ghost small-btn" href={paper.sourceUrl || paper.pdfUrl} target="_blank" rel="noreferrer">arXiv ↗</a>}
+            <a className="btn btn-ghost small-btn" href={downloadUrl(`/projects/${id}/papers/${paper.id}/markdown`)}>⬇ {paper.pdfUrl ? 'Study guide' : 'Markdown'}</a>
             <button className="iconbtn" onClick={onClose}>✕</button>
           </div>
         </div>
         <div className="reader-body">
           <div className="reader-doc">
             {isPdf ? (
-              <iframe title="paper" className="reader-frame" src={downloadUrl(`/projects/${id}/papers/${paper.id}/pdf`)} />
+              <iframe title={paper.title || paper.name} className="reader-frame" src={pdfSrc} />
             ) : md === null ? (
               <div className="dim" style={{ padding: 24 }}>Loading…</div>
             ) : (

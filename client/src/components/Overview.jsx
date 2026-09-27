@@ -75,7 +75,7 @@ function ActivityChart({ events }) {
   );
 }
 
-export default function Overview({ id, project, states, mastery, notes = {}, lessons = {}, onOpenConcept, onOpenLesson, onOpenSettings, onGotoMap }) {
+export default function Overview({ id, project, states, mastery, notes = {}, lessons = {}, cheatsheetAt = 0, onOpenConcept, onOpenLesson, onOpenSettings, onGotoMap, onOpenCheatsheet, onOpenSummaries }) {
   const [events, setEvents] = useState([]);
   const { startLesson, lessonState } = useJobs();
 
@@ -176,6 +176,25 @@ export default function Overview({ id, project, states, mastery, notes = {}, les
             <div><b>{done}</b><span className="dim"> Reviewed</span></div>
             <div><b>{total ? Math.round((done / total) * 100) : 0}%</b><span className="dim"> Done</span></div>
             <div><b>{left}</b><span className="dim"> Left</span></div>
+          </div>
+        </div>
+
+        <div className="ov-card" data-tour="study-tools">
+          <div className="ov-card-head"><span>STUDY TOOLS</span></div>
+          <div className="study-tools">
+            <button className="study-tool" onClick={onOpenCheatsheet}>
+              <span className="study-tool-icon" aria-hidden="true">📝</span>
+              <span className="study-tool-text"><b>Cheatsheet</b><span>{cheatsheetAt ? 'Formulas, definitions and pitfalls on one page' : 'Turn this map into one page with AI'}</span></span>
+              <span className={`study-tool-state ${cheatsheetAt ? 'ok' : ''}`}>{cheatsheetAt ? 'Ready' : 'New'}</span>
+            </button>
+            <button className="study-tool" onClick={onOpenSummaries}>
+              <span className="study-tool-icon" aria-hidden="true">✦</span>
+              <span className="study-tool-text"><b>Summaries</b><span>{project.papers.filter((pp) => pp.summarizedAt).length} of {project.papers.length} summarized · TL;DR, key ideas, results</span></span>
+            </button>
+            <button className="study-tool" disabled={!nextConcept} onClick={() => nextConcept && (lessons[nextConcept.id] ? onOpenLesson(nextConcept) : onOpenConcept(nextConcept.id))}>
+              <span className="study-tool-icon" aria-hidden="true">🎯</span>
+              <span className="study-tool-text"><b>Quiz</b><span>{nextConcept ? `Next up: ${nextConcept.name}` : 'Every concept is reviewed'}</span></span>
+            </button>
           </div>
         </div>
 

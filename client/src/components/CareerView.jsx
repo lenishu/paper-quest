@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, downloadUrl } from '../api';
 import { useJobs } from '../jobs';
-import { useToast } from './bits';
+import { Modal, useToast } from './bits';
 import { ACCENT_HUES } from '../graphLayout';
 
 const PRESETS = [
@@ -18,7 +18,7 @@ const GLYPHS = ['◈', '◇', '◎', '⬡', '◐', '✦'];
 const ACCENTS = ACCENT_HUES.slice(0, 4);
 
 // Skill-state palette from the Claude Design mockup (canvas can't read CSS tokens).
-const STATE_STYLE = {
+export const STATE_STYLE = {
   known: { fill: '#EAF7EF', border: '#1F9D57', text: '#116B3B', label: 'Known' },
   learning: { fill: '#FEF3E0', border: '#F59E0B', text: '#92610A', label: 'Learning' },
   tolearn: { fill: '#FDECEC', border: '#DC2626', text: '#A32424', label: 'To Learn' },
@@ -40,7 +40,7 @@ function wrapLabel(name) {
 
 // Layered DAG canvas in the mockup's visual language: rounded state-colored
 // boxes per depth row, arrows from prerequisite to dependent skill.
-function CareerGraph({ skills, states, selected, onSelect }) {
+export function CareerGraph({ skills, states, selected, onSelect }) {
   const ref = useRef(null);
 
   const layout = useMemo(() => {
@@ -169,15 +169,89 @@ function StatBar({ label, value, total, color }) {
   );
 }
 
-export default function CareerView({ initialId }) {
+// Choosing a career: AI suggestions read from the knowledge graph, popular roles, or
+// free text (an interest or a title) that the AI turns into the best-fitting role.
+function AddCareerModal({ suggestions, conceptCount, onClose, onPick, onInterest, onSuggested, openApiKey }) {
+  const [interest, setInterest] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const list = (suggestions && suggestions.suggestions) || [];
+
+  async function suggest() {
+    setBusy(true); setError('');
+    try { onSuggested(await api('/careers/suggest', { method: 'POST', body: { interest: interest.trim() } })); }
+    catch (e) { setError(e.message); }
+    setBusy(false);
+  }
+
+  return (
+    <Modal onClose={onClose} wide className="career-modal" label="Choose a career path">
+      <div className="modal-head">
+        <div>
+          <span className="eyebrow">Career path</span>
+          <h2>Where are you headed?</h2>
+        </div>
+        <button className="iconbtn" aria-label="Close" onClick={onClose}>✕</button>
+      </div>
+
+      <section className="cm-section">
+        <div className="cm-head">
+          <div>
+            <b>✦ Suggested from your knowledge graph</b>
+            <div className="dim small">{conceptCount ? `AI reads the ${conceptCount} concepts in your projects and matches them to real job titles.` : 'Add a project first, or type an interest below, and AI suggests roles that fit.'}</div>
+          </div>
+          <button className="btn btn-ghost small-btn" disabled={busy || (!conceptCount && !interest.trim())} onClick={suggest}>
+            {busy ? 'Thinking…' : list.length ? '↻ Suggest again' : 'Suggest roles'}
+          </button>
+        </div>
+        {error && <p className="doc-error" role="alert">{error} <button className="linkbtn" onClick={openApiKey}>API key</button></p>}
+        {busy && !list.length && <div className="dim small">Reading your knowledge graph…</div>}
+        {list.length > 0 && (
+          <div className="cm-suggestions">
+            {list.map((s) => (
+              <div key={s.title} className="cm-suggestion">
+                <div className="cm-sug-title">{s.title}</div>
+                <p className="dim small">{s.why}</p>
+                {s.concepts && s.concepts.length > 0 && (
+                  <div className="cm-chips">{s.concepts.map((c) => <span key={c.id} className={`kg-chip ${c.state === 'mastered' ? 'done' : ''}`}>{c.state === 'mastered' ? '✓ ' : ''}{c.name}</span>)}</div>
+                )}
+                {s.tools && s.tools.length > 0 && <div className="dim small">Starter tools: {s.tools.join(' · ')}</div>}
+                <button className="btn btn-primary small-btn" onClick={() => onPick(s.title)}>Build this map →</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="cm-section">
+        <b>Or describe your interest</b>
+        <div className="dim small">A role or a direction. AI picks the job title that fits and maps the tools it needs.</div>
+        <div className="career-custom">
+          <input className="input" placeholder="e.g. I like robotics and computer vision · or: Quant Researcher" value={interest}
+            onChange={(e) => setInterest(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && interest.trim() && onInterest(interest)} />
+          <button className="btn-primary" disabled={!interest.trim()} onClick={() => onInterest(interest)}>Build map</button>
+        </div>
+      </section>
+
+      <section className="cm-section">
+        <b>Popular roles</b>
+        <div className="career-presets">
+          {PRESETS.map((p) => <button key={p} className="preset-btn" onClick={() => onPick(p)}>{p}</button>)}
+        </div>
+      </section>
+      <p className="dim small">Career maps list the tools and skills most job postings ask for (Python, PyTorch, Docker, SQL…), not courses. Compare them with a real job description or your resume afterwards.</p>
+    </Modal>
+  );
+}
+
+export default function CareerView({ initialId, openApiKey }) {
   const toast = useToast();
   const { startCareerJob, careersVersion, jobs } = useJobs();
-  const [data, setData] = useState(null); // { careers, resume }
+  const [data, setData] = useState(null); // { careers, suggestions, concepts }
   const [selId, setSelId] = useState(initialId || null);
   const [detail, setDetail] = useState(null); // full career payload with states/stats
   const [selSkill, setSelSkill] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [customName, setCustomName] = useState('');
   const [jdPasting, setJdPasting] = useState(false);
   const [jdText, setJdText] = useState('');
   const resumeInput = useRef(null);
@@ -205,24 +279,30 @@ export default function CareerView({ initialId }) {
     [jobs]
   );
 
-  const addCareer = async (name) => {
-    const clean = String(name || '').trim();
-    if (!clean) return;
+  const create = async (body, label) => {
     setAdding(false);
-    setCustomName('');
     try {
-      const c = await api('/careers', { method: 'POST', body: { name: clean } });
-      startCareerJob('career-generate', { careerId: c.id, name: `Career map — ${clean}` });
+      const c = await api('/careers', { method: 'POST', body });
+      startCareerJob('career-generate', { careerId: c.id, name: `Career map — ${label}` });
       setSelId(c.id);
       load();
     } catch (e) { toast(e.message, 'err'); }
   };
+  const addCareer = (name) => String(name || '').trim() && create({ name: String(name).trim() }, String(name).trim());
+  const addFromInterest = (text) => String(text || '').trim() && create({ interest: String(text).trim() }, 'your interest');
   const setPrimary = async (id) => {
     try { await api(`/careers/${id}`, { method: 'PATCH', body: { primary: true } }); load(); } catch (e) { toast(e.message, 'err'); }
   };
   const removeCareer = async (id) => {
-    if (!window.confirm('Remove this career and its skills graph?')) return;
+    if (!window.confirm('Remove this career and its map?')) return;
     try { await api(`/careers/${id}`, { method: 'DELETE' }); if (selId === id) setSelId(null); load(); } catch (e) { toast(e.message, 'err'); }
+  };
+  const toggleKnown = async (skill, value) => {
+    try {
+      const d = await api(`/careers/${selId}`, { method: 'PATCH', body: { known: { id: skill.id, value } } });
+      setDetail(d);
+      load();
+    } catch (e) { toast(e.message, 'err'); }
   };
   const onResumeFile = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -237,7 +317,9 @@ export default function CareerView({ initialId }) {
   const submitJdText = () => {
     const text = jdText.trim();
     if (!selId || text.replace(/\s/g, '').length < 80) { toast('Paste the full job description first (a bit more text).', 'err'); return; }
-    startCareerJob('career-jd', { careerId: selId, text, name: 'Pasted job description' });
+    // Name the job after its first line (usually the title and company).
+    const first = (text.split('\n').map((l) => l.trim()).find(Boolean) || 'Pasted job description').replace(/^#+\s*/, '').slice(0, 80);
+    startCareerJob('career-jd', { careerId: selId, text, name: first });
     setJdText('');
     setJdPasting(false);
   };
@@ -246,7 +328,9 @@ export default function CareerView({ initialId }) {
   const resume = (detail && detail.resume) || null;
   const skills = (detail && detail.skills) || [];
   const states = (detail && detail.states) || {};
+  const knowledge = (detail && detail.knowledge) || {};
   const stats = (detail && detail.stats) || { total: 0, known: 0, learning: 0, tolearn: 0, matchPct: 0 };
+  const skillName = useMemo(() => { const m = new Map(skills.map((s) => [s.id, s.name])); return (id) => m.get(id) || id; }, [skills]);
 
   const missing = useMemo(
     () =>
@@ -259,29 +343,39 @@ export default function CareerView({ initialId }) {
     const cont = skills
       .filter((s) => states[s.id] === 'learning')
       .slice(0, 1)
-      .map((s) => ({ glyph: '📖', title: `Continue: ${s.name}`, sub: 'Already in your project graphs — finish its lessons', tag: 'in progress' }));
+      .map((s) => ({ glyph: '📖', title: `Practice: ${s.name}`, sub: 'You know the concepts behind it. Now use the tool in a project.', tag: 'in progress' }));
     const learn = missing.slice(0, 2).map((s) => ({ glyph: '◇', title: `Learn: ${s.name}`, sub: s.roleNote || s.blurb, tag: s.importance }));
     return [...cont, ...learn].slice(0, 3);
   }, [missing, skills, states]);
+
+  const modal = adding && (
+    <AddCareerModal suggestions={data && data.suggestions} conceptCount={(data && data.concepts) || 0} openApiKey={openApiKey}
+      onClose={() => setAdding(false)} onPick={addCareer} onInterest={addFromInterest}
+      onSuggested={(s) => setData((d) => ({ ...d, suggestions: s }))} />
+  );
 
   return (
     <div className="careerv">
       <div className="view-head">
         <div>
           <h1 className="view-title">Career Path</h1>
-          <p className="view-sub">Discover. Plan. Learn. Achieve.</p>
+          <p className="view-sub">Your knowledge graph, turned into the tools and skills jobs ask for.</p>
         </div>
-        <button className="btn-primary" onClick={() => setAdding(true)}>＋ Add Career Path</button>
+        <button className="btn-primary" data-tour="career-add" onClick={() => setAdding(true)}>＋ Add Career Path</button>
       </div>
 
       {!careers.length ? (
         <div className="card career-hero">
           <h2>Where are you headed?</h2>
           <p className="dim">
-            Pick a career trajectory and PaperQuest maps the skills the field demands, shows which ones you
-            already have — from your resume and everything you have mastered here — and what to learn next.
+            AI reads your knowledge graph (every concept in your projects) and suggests roles that fit, or you type an
+            interest. Each career path maps the real tools and skills job postings ask for, shows which you already have,
+            and lets you compare yourself with a job description or your resume.
           </p>
-          <button className="btn-primary" onClick={() => setAdding(true)}>＋ Add your first career path</button>
+          <div className="career-hero-actions">
+            <button className="btn-primary" onClick={() => setAdding(true)}>✦ Suggest careers for me</button>
+            <button className="btn btn-ghost" onClick={() => setAdding(true)}>Type an interest</button>
+          </div>
         </div>
       ) : (
         <>
@@ -303,7 +397,7 @@ export default function CareerView({ initialId }) {
                     </div>
                     <div className="cc-name">{c.name}</div>
                     {c.primary && <div className="cc-primary">Primary</div>}
-                    <div className="cc-match">{careerBusy(c.id) ? 'Working…' : c.skillCount ? `${c.stats.matchPct}% Match` : 'No skills map yet'}</div>
+                    <div className="cc-match">{careerBusy(c.id) ? 'Working…' : c.skillCount ? `${c.stats.matchPct}% Match` : 'No map yet'}</div>
                     <div className="cc-bar"><i style={{ width: `${c.stats.matchPct}%`, background: ACCENTS[i % 4] }} /></div>
                   </div>
                 ))}
@@ -312,35 +406,45 @@ export default function CareerView({ initialId }) {
             </div>
 
             <div className="card career-up">
-              <div className="card-head">Resume for This Career</div>
+              <div className="card-head">Compare with Your Resume</div>
               <div className="career-uprow">
                 <span className="cu-icon cu-green">▤</span>
-                <div className="cu-hint"><b>PDF → Markdown</b><br />Each career keeps its own tailored resume — skills found in it count as known</div>
+                <div className="cu-hint"><b>PDF → Markdown</b><br />Each career keeps its own tailored resume. Skills on it count as known.</div>
               </div>
               {resume ? (
                 <>
                   <a className="cu-file cu-open" href={downloadUrl(`/careers/${selId}/resume/file`)} target="_blank" rel="noreferrer" title="Open this resume">
                     <span>📎 {resume.name}</span><span className="c-green">✓ open ↗</span>
                   </a>
-                  <div className="cu-status c-green">Processed ✓ — {(resume.skills || []).length} skills detected</div>
+                  <div className="cu-status c-green">Covers {(resume.matched || []).length} of {skills.length} skills on this map</div>
+                  {(resume.gaps || []).length > 0 && <div className="cu-gaps">Critical gaps: {resume.gaps.slice(0, 4).map(skillName).join(', ')}{resume.gaps.length > 4 ? ` +${resume.gaps.length - 4}` : ''}</div>}
                   <button className="btn-tint" onClick={() => resumeInput.current && resumeInput.current.click()}>Replace resume</button>
                 </>
               ) : (
                 <button className="btn-tint" disabled={!selId} onClick={() => resumeInput.current && resumeInput.current.click()}>
-                  {selId ? 'Choose file…' : 'Select a career first'}
+                  {selId ? 'Upload resume…' : 'Select a career first'}
                 </button>
               )}
               <input ref={resumeInput} type="file" accept=".pdf,.md,.markdown,.txt" hidden onChange={onResumeFile} />
             </div>
 
             <div className="card career-up">
-              <div className="card-head">Add Job Description</div>
+              <div className="card-head">Compare with a Job</div>
               <div className="career-uprow">
                 <span className="cu-icon cu-blue">▤</span>
-                <div className="cu-hint"><b>Upload or paste</b><br />AI extracts the required skills into the graph</div>
+                <div className="cu-hint"><b>Upload or paste a job description</b><br />Its skills join the map and you see your match for that job.</div>
               </div>
               {detail && detail.jds && detail.jds.length > 0 && (
-                <div className="cu-file"><span>📎 {detail.jds[detail.jds.length - 1].name}</span><span className="c-green">✓</span></div>
+                <div className="jd-list">
+                  {detail.jds.slice(-3).reverse().map((j) => (
+                    <div key={j.id} className="jd-row" title={j.match && j.match.missing.length ? 'Missing: ' + j.match.missing.map(skillName).join(', ') : ''}>
+                      <span className="jd-name">📎 {j.name}</span>
+                      {j.match && j.match.total > 0 ? (
+                        <span className="jd-match"><b>{j.match.pct}%</b> · {j.match.known}/{j.match.total} skills{j.match.missing.length ? ` · missing ${j.match.missing.slice(0, 2).map(skillName).join(', ')}${j.match.missing.length > 2 ? '…' : ''}` : ''}</span>
+                      ) : <span className="jd-match dim">added</span>}
+                    </div>
+                  ))}
+                </div>
               )}
               {jdPasting ? (
                 <>
@@ -348,7 +452,7 @@ export default function CareerView({ initialId }) {
                     placeholder="Paste the job description here…"
                     onChange={(e) => setJdText(e.target.value)} />
                   <div className="jd-paste-row">
-                    <button className="btn-primary" disabled={!selId || !jdText.trim()} onClick={submitJdText}>Add skills</button>
+                    <button className="btn-primary" disabled={!selId || !jdText.trim()} onClick={submitJdText}>Compare</button>
                     <button className="btn-tint" onClick={() => { setJdPasting(false); setJdText(''); }}>Cancel</button>
                   </div>
                 </>
@@ -375,9 +479,9 @@ export default function CareerView({ initialId }) {
           </div>
 
           <div className="career-two">
-            <div className="card cgraph-card">
+            <div className="card cgraph-card" data-tour="career-map">
               <div className="cg-head">
-                <div className="card-head">{detail ? `${detail.name} — Skills Graph` : 'Skills Graph'}</div>
+                <div className="card-head">{detail ? `${detail.name} — Tools & Skills Map` : 'Tools & Skills Map'}</div>
                 <div className="cg-legend">
                   {['known', 'learning', 'tolearn', 'notreq'].map((k) => (
                     <span key={k}><i style={{ background: STATE_STYLE[k].border }} />{STATE_STYLE[k].label}</span>
@@ -392,6 +496,8 @@ export default function CareerView({ initialId }) {
                     const byId = new Map(skills.map((s) => [s.id, s]));
                     const prereqs = (selSkill.prereqs || []).map((id) => byId.get(id)).filter(Boolean);
                     const leads = skills.filter((s) => (s.prereqs || []).includes(selSkill.id));
+                    const concepts = (selSkill.concepts || []).map((id) => knowledge[id]).filter(Boolean);
+                    const marked = !!(detail.known || {})[selSkill.id];
                     return (
                       <div className="cg-detail">
                         <div className="cgd-top">
@@ -402,6 +508,11 @@ export default function CareerView({ initialId }) {
                         </div>
                         <p>{selSkill.blurb}</p>
                         {selSkill.roleNote && <p className="cgd-role"><b>In this role:</b> {selSkill.roleNote}</p>}
+                        {concepts.length > 0 && (
+                          <div className="cgd-links">From your knowledge graph:{concepts.map((c) => (
+                            <span key={c.id} className={`kg-chip ${c.state === 'mastered' ? 'done' : ''}`}>{c.state === 'mastered' ? '✓ ' : ''}{c.name}</span>
+                          ))}</div>
+                        )}
                         {prereqs.length > 0 && (
                           <div className="cgd-links">Builds on:{prereqs.map((p) => (
                             <button key={p.id} onClick={() => setSelSkill(p)}>{p.name}</button>
@@ -412,24 +523,31 @@ export default function CareerView({ initialId }) {
                             <button key={p.id} onClick={() => setSelSkill(p)}>{p.name}</button>
                           ))}</div>
                         )}
+                        <div className="cgd-actions">
+                          {marked
+                            ? <button className="btn btn-ghost small-btn" onClick={() => toggleKnown(selSkill, false)}>✓ Marked as known · undo</button>
+                            : states[selSkill.id] !== 'known' && <button className="btn btn-ghost small-btn" onClick={() => toggleKnown(selSkill, true)}>I already know this</button>}
+                        </div>
                         {states[selSkill.id] === 'tolearn' && (
-                          <p className="cgd-suggest">Suggested: learn this next — start with any unlearned prerequisite above, or add a paper that uses it to a project.</p>
+                          <p className="cgd-suggest">{concepts.some((c) => c.state !== 'mastered')
+                            ? 'Suggested: master the concepts above in your projects first, then practise the tool.'
+                            : 'Suggested: learn this next. Start with any unlearned tool it builds on.'}</p>
                         )}
                       </div>
                     );
                   })()}
-                  <div className="dim small">Arrows point from a prerequisite to the skill that builds on it. Click a skill for details.</div>
+                  <div className="dim small">Arrows point from a tool to the one that builds on it. Tools turn amber once you master the concepts they use. Click one for details.</div>
                 </>
               ) : (
                 <div className="career-empty">
                   {selId && careerBusy(selId) ? (
-                    <p className="dim">Mapping the skills for this career…</p>
+                    <p className="dim">Mapping the tools and skills for this career…</p>
                   ) : (
                     <>
-                      <p className="dim">No skills map yet for this career.</p>
+                      <p className="dim">No map yet for this career.</p>
                       <button className="btn-primary" disabled={!detail}
                         onClick={() => detail && startCareerJob('career-generate', { careerId: detail.id, name: `Career map — ${detail.name}` })}>
-                        Generate skills map
+                        Generate map
                       </button>
                     </>
                   )}
@@ -452,7 +570,7 @@ export default function CareerView({ initialId }) {
                   <div className="career-tip">
                     ⚡ {stats.matchPct >= 70
                       ? 'Great progress! Focus on the missing critical skills to improve your match.'
-                      : 'Upload your resume and complete lessons — every mastered concept counts toward this match.'}
+                      : 'Upload your resume, mark tools you know, and master concepts: every one counts toward this match.'}
                   </div>
                 )}
               </div>
@@ -465,7 +583,7 @@ export default function CareerView({ initialId }) {
                       {s.importance === 'critical' ? '● ' : ''}{s.name}
                     </span>
                   ))}
-                  {!missing.length && <span className="dim small">Nothing missing — you cover this role.</span>}
+                  {!missing.length && <span className="dim small">Nothing missing: you cover this role.</span>}
                 </div>
               </div>
 
@@ -488,25 +606,7 @@ export default function CareerView({ initialId }) {
         </>
       )}
 
-      {adding && (
-        <div className="modal-backdrop" onClick={() => setAdding(false)}>
-          <div className="modal career-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head"><h2>Choose a career trajectory</h2></div>
-            <p className="dim small">Pick a preset or type your own — the AI maps the skills this field requires.</p>
-            <div className="career-presets">
-              {PRESETS.map((p) => (
-                <button key={p} className="preset-btn" onClick={() => addCareer(p)}>{p}</button>
-              ))}
-            </div>
-            <div className="career-custom">
-              <input placeholder="Or type any career… e.g. Robotics Engineer" value={customName} autoFocus
-                onChange={(e) => setCustomName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addCareer(customName)} />
-              <button className="btn-primary" disabled={!customName.trim()} onClick={() => addCareer(customName)}>Add</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {modal}
     </div>
   );
 }

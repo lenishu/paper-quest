@@ -36,7 +36,7 @@ export default function ExploreView({ onOpenConcept, onTryDemo }) {
         </div>
       )}
       {graph && !empty && (
-        <KnowledgeGraph nodes={graph.nodes} edges={graph.edges} height={560} onOpenConcept={onOpenConcept} />
+        <div data-tour="explore-graph"><KnowledgeGraph nodes={graph.nodes} edges={graph.edges} height={560} onOpenConcept={onOpenConcept} /></div>
       )}
     </div>
   );
